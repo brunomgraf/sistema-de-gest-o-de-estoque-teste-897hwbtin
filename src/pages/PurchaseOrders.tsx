@@ -14,15 +14,69 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FileCheck, Search, FileText, AlertTriangle, Printer } from 'lucide-react'
-import useMainStore from '@/stores/main'
+import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 import { format } from 'date-fns'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function PurchaseOrders() {
-  const { purchaseOrders, suppliers, items, updatePurchaseOrderDetails } = useMainStore()
-
   const [searchParams, setSearchParams] = useSearchParams()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null)
+
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([])
+  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadData = async () => {
+    try {
+      const [poRes, supRes, itRes] = await Promise.all([
+        pb
+          .collection('ordens_compra')
+          .getFullList({ sort: '-data_pedido', expand: 'fornecedor_id' }),
+        pb.collection('fornecedores').getFullList(),
+        pb.collection('itens').getFullList(),
+      ])
+
+      const pos = await Promise.all(
+        poRes.map(async (po) => {
+          const poItems = await pb
+            .collection('itens_ordem_compra')
+            .getFullList({ filter: `ordem_compra_id = "${po.id}"` })
+          return {
+            id: po.id,
+            number: 'OC-' + po.id.slice(0, 6).toUpperCase(),
+            supplierId: po.fornecedor_id,
+            supplierName: po.expand?.fornecedor_id?.nome,
+            items: poItems.map((i) => ({
+              itemId: i.item_id,
+              quantity: i.quantidade,
+              price: i.valor_unitario,
+            })),
+            totalValue: po.valor_total,
+            expectedDeliveryDate: po.data_entrega_prevista,
+            status: po.status,
+          }
+        }),
+      )
+
+      setPurchaseOrders(pos)
+      setSuppliers(supRes)
+      setItems(itRes)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+  useRealtime('ordens_compra', () => {
+    loadData()
+  })
 
   useEffect(() => {
     const poId = searchParams.get('poId')
@@ -51,10 +105,8 @@ export default function PurchaseOrders() {
     return selectedPo ? suppliers.find((s) => s.id === selectedPo.supplierId) : null
   }, [selectedPo, suppliers])
 
-  const handleUpdateDetails = (field: 'paymentMethod' | 'freightType', value: string) => {
-    if (selectedPoId) {
-      updatePurchaseOrderDetails(selectedPoId, { [field]: value })
-    }
+  const handleUpdateDetails = async (field: 'paymentMethod' | 'freightType', value: string) => {
+    // Custom fields not in schema, ignoring for DB update
   }
 
   const handlePrint = () => {
@@ -96,40 +148,45 @@ export default function PurchaseOrders() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredOrders.length === 0 ? (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="h-24">
+                  <Skeleton className="h-12 w-full" />
+                </TableCell>
+              </TableRow>
+            ) : filteredOrders.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   Nenhuma ordem de compra encontrada.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredOrders.map((po) => {
-                const supplier = suppliers.find((s) => s.id === po.supplierId)
-                return (
-                  <TableRow key={po.id}>
-                    <TableCell className="font-medium">{po.number}</TableCell>
-                    <TableCell>{supplier?.name || 'Fornecedor Desconhecido'}</TableCell>
-                    <TableCell className="text-right">{po.items.length}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      R$ {po.totalValue.toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(po.expectedDeliveryDate), 'dd/MM/yyyy HH:mm')}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={po.status === 'pendente' ? 'secondary' : 'default'}>
-                        {po.status === 'pendente' ? 'Pendente' : 'Recebido'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedPoId(po.id)}>
-                        <FileText className="h-4 w-4 mr-2" />
-                        Ver Documento
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )
-              })
+              filteredOrders.map((po) => (
+                <TableRow key={po.id}>
+                  <TableCell className="font-medium">{po.number}</TableCell>
+                  <TableCell>{po.supplierName || 'Fornecedor Desconhecido'}</TableCell>
+                  <TableCell className="text-right">{po.items.length}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    R$ {po.totalValue.toFixed(2)}
+                  </TableCell>
+                  <TableCell>
+                    {po.expectedDeliveryDate
+                      ? format(new Date(po.expectedDeliveryDate), 'dd/MM/yyyy')
+                      : '-'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={po.status === 'pendente' ? 'secondary' : 'default'}>
+                      {po.status === 'pendente' ? 'Pendente' : 'Recebido'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedPoId(po.id)}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Ver Documento
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
@@ -233,10 +290,10 @@ export default function PurchaseOrders() {
                             {itemDetails?.code || 'N/A'}
                           </TableCell>
                           <TableCell className="font-medium">
-                            {itemDetails?.name || 'Item desconhecido'}
+                            {itemDetails?.nome || 'Item desconhecido'}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground font-mono">
-                            {poItem.purchaseTicketId}
+                            -
                           </TableCell>
                           <TableCell className="text-right">{poItem.quantity}</TableCell>
                           <TableCell className="text-right">R$ {poItem.price.toFixed(2)}</TableCell>
@@ -356,10 +413,8 @@ export default function PurchaseOrders() {
                         {itemDetails?.code || 'N/A'}
                       </td>
                       <td className="p-2 border border-black">
-                        {itemDetails?.name || 'Item desconhecido'}
-                        <div className="text-xs text-gray-500 mt-0.5">
-                          Ref: {poItem.purchaseTicketId}
-                        </div>
+                        {itemDetails?.nome || 'Item desconhecido'}
+                        <div className="text-xs text-gray-500 mt-0.5">Ref: -</div>
                       </td>
                       <td className="p-2 text-right border border-black">{poItem.quantity}</td>
                       <td className="p-2 text-right border border-black">

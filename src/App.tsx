@@ -20,14 +20,6 @@ import Receiving from './pages/Receiving'
 import NotFound from './pages/NotFound'
 
 const AppContent = () => {
-  useEffect(() => {
-    toast('Aviso de Persistência', {
-      description:
-        'O sistema está operando com dados de demonstração (mock). Nenhuma conexão com banco de dados detectada.',
-      icon: <AlertTriangle className="text-yellow-500" />,
-      duration: 10000,
-    })
-  }, [])
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

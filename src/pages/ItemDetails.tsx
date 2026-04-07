@@ -19,11 +19,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import useMainStore from '@/stores/main'
+import { useEffect } from 'react'
+import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { ItemStatusBadge } from '@/components/ItemStatusBadge'
 import { StockOutForm } from '@/components/forms/StockOutForm'
 import { ItemForm } from '@/components/forms/ItemForm'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const PREFERENCE_LABELS = {
   primary: 'Preferencial',
@@ -39,16 +42,94 @@ const PREFERENCE_COLORS = {
 
 export default function ItemDetails() {
   const { id } = useParams()
-  const { items, suppliers, movements, user, recordMovement, updateItem } = useMainStore()
+  const [item, setItem] = useState<any>(null)
+  const [itemMovements, setItemMovements] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const user = pb.authStore.record
   const [stockOutOpen, setStockOutOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
 
-  const item = items.find((i) => i.id === id)
+  const loadData = async () => {
+    if (!id) return
+    try {
+      const itemRes = await pb.collection('itens').getOne(id)
+      setItem({
+        id: itemRes.id,
+        code: itemRes.sku,
+        name: itemRes.nome,
+        currentQuantity: itemRes.quantidade_atual,
+        minQuantity: itemRes.quantidade_minima,
+        costPrice: itemRes.valor_unitario,
+        suppliers: [],
+      })
+
+      const movs = await pb.collection('movimentacoes').getList(1, 10, {
+        filter: `item_id = "${id}"`,
+        sort: '-data_movimento',
+        expand: 'usuario_id',
+      })
+      setItemMovements(movs.items)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [id])
+  useRealtime('itens', () => {
+    loadData()
+  })
+  useRealtime('movimentacoes', () => {
+    loadData()
+  })
+
+  const updateItem = async (itemId: string, data: any) => {
+    await pb.collection('itens').update(itemId, {
+      nome: data.name,
+      sku: data.code,
+      quantidade_atual: data.currentQuantity,
+      quantidade_minima: data.minQuantity,
+      valor_unitario: data.costPrice,
+      status_critico: data.currentQuantity <= data.minQuantity,
+    })
+  }
+
+  const recordMovement = async (data: any) => {
+    await pb.collection('movimentacoes').create({
+      item_id: data.itemId,
+      tipo_movimento: data.type === 'in' ? 'entrada' : 'saida',
+      quantidade: data.quantity,
+      motivo: data.observation,
+      usuario_id: data.userId,
+      data_movimento: new Date().toISOString(),
+    })
+
+    const currentItem = await pb.collection('itens').getOne(data.itemId)
+    const newQtd =
+      data.type === 'in'
+        ? currentItem.quantidade_atual + data.quantity
+        : currentItem.quantidade_atual - data.quantity
+
+    await pb.collection('itens').update(data.itemId, {
+      quantidade_atual: newQtd,
+      status_critico: newQtd <= currentItem.quantidade_minima,
+    })
+  }
+
+  const canEdit = user?.role === 'admin' || user?.role === 'gestor' || user?.role === 'gerente'
+
+  if (loading)
+    return (
+      <div className="p-8">
+        <Skeleton className="h-64 w-full" />
+      </div>
+    )
   if (!item)
     return <div className="p-8 text-center text-xl text-muted-foreground">Item não encontrado.</div>
-
-  const itemMovements = movements.filter((m) => m.itemId === item.id).slice(0, 10)
-  const canEdit = user?.role === 'admin' || user?.role === 'gerente'
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-10">
@@ -218,22 +299,24 @@ export default function ItemDetails() {
                 <TableBody>
                   {itemMovements.map((m) => (
                     <TableRow key={m.id}>
-                      <TableCell>{formatDate(m.date)}</TableCell>
+                      <TableCell>{formatDate(m.data_movimento)}</TableCell>
                       <TableCell>
                         <Badge
-                          variant={m.type === 'in' ? 'default' : 'destructive'}
+                          variant={m.tipo_movimento === 'entrada' ? 'default' : 'destructive'}
                           className={
-                            m.type === 'in' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : ''
+                            m.tipo_movimento === 'entrada'
+                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              : ''
                           }
                         >
-                          {m.type === 'in' ? 'Entrada' : 'Saída'}
+                          {m.tipo_movimento === 'entrada' ? 'Entrada' : 'Saída'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-medium">{m.quantity}</TableCell>
-                      <TableCell>{m.productionOrder || '-'}</TableCell>
-                      <TableCell>{m.requestedBy || '-'}</TableCell>
+                      <TableCell className="font-medium">{m.quantidade}</TableCell>
+                      <TableCell>-</TableCell>
+                      <TableCell>{m.expand?.usuario_id?.name || '-'}</TableCell>
                       <TableCell className="text-muted-foreground truncate max-w-[150px]">
-                        {m.observation || '-'}
+                        {m.motivo || '-'}
                       </TableCell>
                     </TableRow>
                   ))}

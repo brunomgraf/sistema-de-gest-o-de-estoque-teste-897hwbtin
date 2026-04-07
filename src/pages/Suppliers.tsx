@@ -17,19 +17,64 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Card } from '@/components/ui/card'
-import useMainStore from '@/stores/main'
+import { useEffect } from 'react'
+import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 import { SupplierForm } from '@/components/forms/SupplierForm'
-import { Supplier } from '@/lib/types'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function Suppliers() {
-  const store = useMainStore() as any
-  const suppliers: Supplier[] = store.suppliers || []
-  const user = store.user
-  const addSupplier = store.addSupplier
-  const updateSupplier = store.updateSupplier
+  const user = pb.authStore.record
+  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [open, setOpen] = useState(false)
-  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
+  const [editingSupplier, setEditingSupplier] = useState<any | null>(null)
+
+  const loadData = async () => {
+    try {
+      const res = await pb.collection('fornecedores').getFullList({ sort: 'nome' })
+      setSuppliers(
+        res.map((s) => ({
+          id: s.id,
+          name: s.nome,
+          email: s.email,
+          phone: s.telefone,
+          contact: s.endereco, // Using endereco as contact for now
+          leadTime: 0,
+        })),
+      )
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+  useRealtime('fornecedores', () => {
+    loadData()
+  })
+
+  const addSupplier = async (data: any) => {
+    await pb.collection('fornecedores').create({
+      nome: data.name,
+      email: data.email,
+      telefone: data.phone,
+      endereco: data.contact,
+    })
+  }
+
+  const updateSupplier = async (id: string, data: any) => {
+    await pb.collection('fornecedores').update(id, {
+      nome: data.name,
+      email: data.email,
+      telefone: data.phone,
+      endereco: data.contact,
+    })
+  }
 
   const canEdit = user?.role === 'admin' || user?.role === 'gerente'
   const canAdd = user?.role === 'admin'
@@ -74,32 +119,39 @@ export default function Suppliers() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {suppliers.map((supplier) => (
-              <TableRow key={supplier.id}>
-                <TableCell className="font-medium">{supplier.name}</TableCell>
-                <TableCell>{supplier.contact}</TableCell>
-                <TableCell>{supplier.email}</TableCell>
-                <TableCell>{supplier.phone}</TableCell>
-                <TableCell className="text-right">{supplier.leadTime}</TableCell>
-                {canEdit && (
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setEditingSupplier(supplier)}
-                    >
-                      <Pencil className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </TableCell>
-                )}
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={canEdit ? 6 : 5} className="h-24">
+                  <Skeleton className="h-12 w-full" />
+                </TableCell>
               </TableRow>
-            ))}
-            {suppliers.length === 0 && (
+            ) : suppliers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={canEdit ? 6 : 5} className="text-center py-8">
                   Nenhum fornecedor cadastrado.
                 </TableCell>
               </TableRow>
+            ) : (
+              suppliers.map((supplier) => (
+                <TableRow key={supplier.id}>
+                  <TableCell className="font-medium">{supplier.name}</TableCell>
+                  <TableCell>{supplier.contact}</TableCell>
+                  <TableCell>{supplier.email}</TableCell>
+                  <TableCell>{supplier.phone}</TableCell>
+                  <TableCell className="text-right">-</TableCell>
+                  {canEdit && (
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingSupplier(supplier)}
+                      >
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
@@ -113,16 +165,8 @@ export default function Suppliers() {
           {editingSupplier && (
             <SupplierForm
               defaultValues={editingSupplier}
-              onSubmit={(data) => {
-                if (updateSupplier) {
-                  updateSupplier(editingSupplier.id, data)
-                } else if (useMainStore.setState) {
-                  useMainStore.setState((state: any) => ({
-                    suppliers: state.suppliers.map((s: Supplier) =>
-                      s.id === editingSupplier.id ? { ...s, ...data } : s,
-                    ),
-                  }))
-                }
+              onSubmit={async (data) => {
+                await updateSupplier(editingSupplier.id, data)
                 setEditingSupplier(null)
               }}
               onCancel={() => setEditingSupplier(null)}

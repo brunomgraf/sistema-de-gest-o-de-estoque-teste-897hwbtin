@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Download, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,18 +12,44 @@ import {
 } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import useMainStore from '@/stores/main'
+import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/format'
+import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function Reports() {
-  const { movements, items, MOCK_USERS } = useMainStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const filter = searchParams.get('filter')
+
+  const [movements, setMovements] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadData = async () => {
+    try {
+      const res = await pb.collection('movimentacoes').getFullList({
+        sort: '-data_movimento',
+        expand: 'item_id,usuario_id',
+      })
+      setMovements(res)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  useRealtime('movimentacoes', () => {
+    loadData()
+  })
 
   const filteredMovements = movements.filter((m) => {
     if (filter === 'mes_atual') {
       const now = new Date()
-      const moveDate = new Date(m.date)
+      const moveDate = new Date(m.data_movimento)
       return moveDate.getMonth() === now.getMonth() && moveDate.getFullYear() === now.getFullYear()
     }
     return true
@@ -34,13 +61,13 @@ export default function Reports() {
   }
 
   const handleExport = () => {
-    // Mock export functionality
     const csvContent =
-      'data:text/csv;charset=utf-8,Data,Item,Tipo,Quantidade,OP,Observação\n' +
+      'data:text/csv;charset=utf-8,Data,Item,Tipo,Quantidade,Motivo,Usuário\n' +
       filteredMovements
         .map((m) => {
-          const item = items.find((i) => i.id === m.itemId)
-          return `${formatDate(m.date)},${item?.name || m.itemId},${m.type},${m.quantity},${m.productionOrder || ''},${m.observation || ''}`
+          const itemName = m.expand?.item_id?.nome || '-'
+          const userName = m.expand?.usuario_id?.name || '-'
+          return `${formatDate(m.data_movimento)},${itemName},${m.tipo_movimento},${m.quantidade},${m.motivo || ''},${userName}`
         })
         .join('\n')
 
@@ -88,38 +115,52 @@ export default function Reports() {
                 <TableHead>Item</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead className="text-right">Qtd</TableHead>
-                <TableHead>OP</TableHead>
+                <TableHead>Motivo</TableHead>
                 <TableHead>Usuário</TableHead>
-                <TableHead>Observação</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredMovements.map((m) => {
-                const item = items.find((i) => i.id === m.itemId)
-                // Use a fallback to mock users array or standard display
-                return (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24">
+                    <Skeleton className="h-20 w-full" />
+                  </TableCell>
+                </TableRow>
+              ) : filteredMovements.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                    Nenhuma movimentação encontrada.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredMovements.map((m) => (
                   <TableRow key={m.id}>
-                    <TableCell className="whitespace-nowrap">{formatDate(m.date)}</TableCell>
-                    <TableCell className="font-medium">{item?.name || 'Desconhecido'}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatDate(m.data_movimento)}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {m.expand?.item_id?.nome || 'Desconhecido'}
+                    </TableCell>
                     <TableCell>
                       <Badge
-                        variant={m.type === 'in' ? 'default' : 'destructive'}
+                        variant={m.tipo_movimento === 'entrada' ? 'default' : 'destructive'}
                         className={
-                          m.type === 'in' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : ''
+                          m.tipo_movimento === 'entrada'
+                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            : ''
                         }
                       >
-                        {m.type === 'in' ? 'Entrada' : m.type === 'out' ? 'Saída' : 'Ajuste'}
+                        {m.tipo_movimento === 'entrada' ? 'Entrada' : 'Saída'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-medium">{m.quantity}</TableCell>
-                    <TableCell className="font-medium text-slate-700">
-                      {m.productionOrder || '-'}
+                    <TableCell className="text-right font-medium">{m.quantidade}</TableCell>
+                    <TableCell className="font-medium text-slate-700">{m.motivo || '-'}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {m.expand?.usuario_id?.name || '-'}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">ID: {m.userId}</TableCell>
-                    <TableCell className="text-muted-foreground">{m.observation || '-'}</TableCell>
                   </TableRow>
-                )
-              })}
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

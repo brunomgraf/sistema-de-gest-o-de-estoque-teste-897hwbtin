@@ -18,22 +18,75 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { ArrowDownToLine, CheckCircle2, Eye, Info } from 'lucide-react'
-import useMainStore from '@/stores/main'
+import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 import { format } from 'date-fns'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useEffect } from 'react'
 
 export default function Receiving() {
-  const { purchaseOrders, items, suppliers, receivePurchaseOrder } = useMainStore()
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null)
 
-  const enrichedPOs = useMemo(() => {
-    return purchaseOrders.map((po) => {
-      const supplier = suppliers.find((s) => s.id === po.supplierId)
-      return {
-        ...po,
-        supplierName: supplier?.name || 'Fornecedor desconhecido',
-      }
+  const [enrichedPOs, setEnrichedPOs] = useState<any[]>([])
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadData = async () => {
+    try {
+      const [poRes, itRes] = await Promise.all([
+        pb
+          .collection('ordens_compra')
+          .getFullList({ sort: '-data_pedido', expand: 'fornecedor_id' }),
+        pb.collection('itens').getFullList(),
+      ])
+
+      const pos = await Promise.all(
+        poRes.map(async (po) => {
+          const poItems = await pb
+            .collection('itens_ordem_compra')
+            .getFullList({ filter: `ordem_compra_id = "${po.id}"` })
+          return {
+            id: po.id,
+            number: 'OC-' + po.id.slice(0, 6).toUpperCase(),
+            supplierId: po.fornecedor_id,
+            supplierName: po.expand?.fornecedor_id?.nome || 'Fornecedor desconhecido',
+            items: poItems.map((i) => ({
+              itemId: i.item_id,
+              quantity: i.quantidade,
+              price: i.valor_unitario,
+            })),
+            totalValue: po.valor_total,
+            expectedDeliveryDate: po.data_entrega_prevista,
+            status: po.status,
+          }
+        }),
+      )
+
+      setEnrichedPOs(pos)
+      setItems(itRes)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+  useRealtime('ordens_compra', () => {
+    loadData()
+  })
+
+  const receivePurchaseOrder = async (id: string) => {
+    await pb.collection('ordens_compra').update(id, { status: 'entregue' })
+    await pb.collection('recebimento').create({
+      ordem_compra_id: id,
+      data_recebimento: new Date().toISOString(),
+      quantidade_recebida: 1,
+      status_verificacao: 'ok',
     })
-  }, [purchaseOrders, suppliers])
+  }
 
   const selectedPo = useMemo(() => {
     return enrichedPOs.find((p) => p.id === selectedPoId) || null
@@ -71,7 +124,13 @@ export default function Receiving() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {enrichedPOs.length === 0 ? (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="h-24">
+                  <Skeleton className="h-12 w-full" />
+                </TableCell>
+              </TableRow>
+            ) : enrichedPOs.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   Nenhuma ordem de compra pendente. Confirme uma cotação em "Compras" para gerar um
@@ -88,12 +147,14 @@ export default function Receiving() {
                     R$ {po.totalValue.toFixed(2)}
                   </TableCell>
                   <TableCell>
-                    {format(new Date(po.expectedDeliveryDate), 'dd/MM/yyyy HH:mm')}
+                    {po.expectedDeliveryDate
+                      ? format(new Date(po.expectedDeliveryDate), 'dd/MM/yyyy')
+                      : '-'}
                   </TableCell>
                   <TableCell>
                     <Badge
                       variant={po.status === 'pendente' ? 'secondary' : 'default'}
-                      className={po.status === 'recebido' ? 'bg-green-600 hover:bg-green-700' : ''}
+                      className={po.status === 'entregue' ? 'bg-green-600 hover:bg-green-700' : ''}
                     >
                       {po.status === 'pendente' ? 'Aguardando' : 'Recebido'}
                     </Badge>
@@ -176,7 +237,7 @@ export default function Receiving() {
                       return (
                         <TableRow key={idx} className="border-slate-100 hover:bg-slate-50/50">
                           <TableCell className="font-medium text-slate-700">
-                            {itemObj?.name || 'Item desconhecido'}
+                            {itemObj?.nome || 'Item desconhecido'}
                           </TableCell>
                           <TableCell className="text-right">{it.quantity}</TableCell>
                           <TableCell className="text-right">R$ {it.price.toFixed(2)}</TableCell>
@@ -199,7 +260,7 @@ export default function Receiving() {
                 </p>
               </div>
 
-              {selectedPo.status === 'recebido' && (
+              {selectedPo.status === 'entregue' && (
                 <div className="mt-8 flex justify-center animate-in fade-in slide-in-from-bottom-4">
                   <Badge className="bg-green-100 text-green-800 border-green-200 px-4 py-1.5 text-sm font-bold shadow-sm">
                     DOCUMENTO RECEBIDO E ESTOQUE ATUALIZADO

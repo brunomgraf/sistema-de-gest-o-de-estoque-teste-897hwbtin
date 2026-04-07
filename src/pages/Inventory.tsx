@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -20,18 +20,52 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Card } from '@/components/ui/card'
-import useMainStore from '@/stores/main'
+import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
 import { ItemStatusBadge } from '@/components/ItemStatusBadge'
 import { ItemForm } from '@/components/forms/ItemForm'
+import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function Inventory() {
-  const { items, suppliers, user, addItem } = useMainStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const filter = searchParams.get('filter') || 'todos'
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const user = pb.authStore.record
+
+  const loadData = async () => {
+    try {
+      const res = await pb.collection('itens').getFullList({ sort: 'nome' })
+      setItems(
+        res.map((i) => ({
+          ...i,
+          id: i.id,
+          code: i.sku,
+          name: i.nome,
+          currentQuantity: i.quantidade_atual,
+          minQuantity: i.quantidade_minima,
+          costPrice: i.valor_unitario,
+        })),
+      )
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  useRealtime('itens', () => {
+    loadData()
+  })
 
   const filteredItems = items.filter((item) => {
     const matchesSearch =
@@ -40,17 +74,33 @@ export default function Inventory() {
 
     if (!matchesSearch) return false
 
-    if (filter === 'critico') return item.currentQuantity < item.minQuantity
+    if (filter === 'critico') return item.currentQuantity <= item.minQuantity
     if (filter === 'atencao')
       return (
-        item.currentQuantity >= item.minQuantity && item.currentQuantity <= item.minQuantity * 1.2
+        item.currentQuantity > item.minQuantity && item.currentQuantity <= item.minQuantity * 1.2
       )
     if (filter === 'ok') return item.currentQuantity > item.minQuantity * 1.2
 
     return true
   })
 
-  const canAdd = user?.role === 'admin' || user?.role === 'gerente'
+  const handleAddItem = async (data: any) => {
+    try {
+      await pb.collection('itens').create({
+        nome: data.name,
+        sku: data.code,
+        quantidade_atual: data.currentQuantity || 0,
+        quantidade_minima: data.minQuantity || 0,
+        valor_unitario: data.costPrice || 0,
+        status_critico: (data.currentQuantity || 0) <= (data.minQuantity || 0),
+      })
+      setOpen(false)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const canAdd = user?.role === 'admin' || user?.role === 'gestor'
 
   return (
     <div className="space-y-6">
@@ -96,13 +146,7 @@ export default function Inventory() {
                 <DialogHeader>
                   <DialogTitle>Cadastrar Novo Item</DialogTitle>
                 </DialogHeader>
-                <ItemForm
-                  onSubmit={(data) => {
-                    addItem(data)
-                    setOpen(false)
-                  }}
-                  onCancel={() => setOpen(false)}
-                />
+                <ItemForm onSubmit={handleAddItem} onCancel={() => setOpen(false)} />
               </DialogContent>
             </Dialog>
           )}
@@ -116,17 +160,30 @@ export default function Inventory() {
               <TableHead className="w-[100px]">Status</TableHead>
               <TableHead>Código</TableHead>
               <TableHead>Nome</TableHead>
-              <TableHead>Localização</TableHead>
               <TableHead className="text-right">Qtd. Atual</TableHead>
               <TableHead className="text-right">Qtd. Mínima</TableHead>
-              <TableHead>Fornecedor</TableHead>
               <TableHead className="text-right">Valor Custo</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredItems.map((item) => {
-              const supplier = suppliers.find((s) => s.id === item.supplierId)
-              return (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-24">
+                  <div className="flex flex-col gap-2 w-full px-4">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : filteredItems.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                  Nenhum item encontrado.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredItems.map((item) => (
                 <TableRow
                   key={item.id}
                   className="cursor-pointer hover:bg-slate-50 transition-colors"
@@ -137,24 +194,13 @@ export default function Inventory() {
                   </TableCell>
                   <TableCell className="font-medium">{item.code}</TableCell>
                   <TableCell>{item.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {item.shelfLocation || '-'}
-                  </TableCell>
                   <TableCell className="text-right font-semibold">{item.currentQuantity}</TableCell>
                   <TableCell className="text-right text-muted-foreground">
                     {item.minQuantity}
                   </TableCell>
-                  <TableCell>{supplier?.name || 'Desconhecido'}</TableCell>
                   <TableCell className="text-right">{formatCurrency(item.costPrice)}</TableCell>
                 </TableRow>
-              )
-            })}
-            {filteredItems.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                  Nenhum item encontrado.
-                </TableCell>
-              </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

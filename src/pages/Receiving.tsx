@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -15,21 +15,23 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { ArrowDownToLine, CheckCircle2, Eye, Info } from 'lucide-react'
+import { ArrowDownToLine, CheckCircle2, Eye, Loader2 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { format } from 'date-fns'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useEffect } from 'react'
+import { useAuth } from '@/hooks/use-auth'
+import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export default function Receiving() {
+  const { user } = useAuth()
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null)
-
   const [enrichedPOs, setEnrichedPOs] = useState<any[]>([])
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [receivingId, setReceivingId] = useState<string | null>(null)
 
   const loadData = async () => {
     try {
@@ -66,6 +68,7 @@ export default function Receiving() {
       setItems(itRes)
     } catch (e) {
       console.error(e)
+      toast.error('Erro ao carregar dados: ' + getErrorMessage(e))
     } finally {
       setLoading(false)
     }
@@ -74,18 +77,62 @@ export default function Receiving() {
   useEffect(() => {
     loadData()
   }, [])
+
   useRealtime('ordens_compra', () => {
+    loadData()
+  })
+  useRealtime('itens_ordem_compra', () => {
     loadData()
   })
 
   const receivePurchaseOrder = async (id: string) => {
-    await pb.collection('ordens_compra').update(id, { status: 'entregue' })
-    await pb.collection('recebimento').create({
-      ordem_compra_id: id,
-      data_recebimento: new Date().toISOString(),
-      quantidade_recebida: 1,
-      status_verificacao: 'ok',
-    })
+    if (!user) {
+      toast.error('Usuário não autenticado.')
+      return
+    }
+
+    try {
+      setReceivingId(id)
+      const po = enrichedPOs.find((p) => p.id === id)
+      if (!po) throw new Error('Ordem de compra não encontrada.')
+
+      await pb.collection('ordens_compra').update(id, { status: 'entregue' })
+
+      const totalQuantity = po.items.reduce((acc: number, item: any) => acc + item.quantity, 0)
+
+      await pb.collection('recebimento').create({
+        ordem_compra_id: id,
+        data_recebimento: new Date().toISOString(),
+        quantidade_recebida: totalQuantity,
+        status_verificacao: 'ok',
+      })
+
+      for (const item of po.items) {
+        const itemRecord = items.find((i) => i.id === item.itemId)
+        if (itemRecord) {
+          const newQuantity = (itemRecord.quantidade_atual || 0) + item.quantity
+
+          await pb.collection('itens').update(item.itemId, {
+            quantidade_atual: newQuantity,
+          })
+
+          await pb.collection('movimentacoes').create({
+            item_id: item.itemId,
+            tipo_movimento: 'entrada',
+            quantidade: item.quantity,
+            data_movimento: new Date().toISOString(),
+            motivo: `Recebimento da Ordem de Compra ${po.number}`,
+            usuario_id: user.id,
+          })
+        }
+      }
+
+      toast.success('Ordem de compra recebida com sucesso! Estoque atualizado.')
+    } catch (e: any) {
+      toast.error('Erro ao receber ordem de compra: ' + getErrorMessage(e))
+    } finally {
+      setReceivingId(null)
+    }
   }
 
   const selectedPo = useMemo(() => {
@@ -100,15 +147,6 @@ export default function Receiving() {
           Recebimento (Ordens de Compra)
         </h2>
       </div>
-
-      <Alert className="mb-6 bg-blue-50/50 text-blue-800 border-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:border-blue-900">
-        <Info className="h-4 w-4 !text-blue-800 dark:!text-blue-200" />
-        <AlertTitle className="font-semibold">Aviso sobre Dados Locais</AlertTitle>
-        <AlertDescription>
-          Como não há banco de dados conectado, as Ordens de Compra geradas e consolidadas são
-          gerenciadas na memória local. Elas serão redefinidas caso a página seja recarregada.
-        </AlertDescription>
-      </Alert>
 
       <div className="rounded-md border bg-card">
         <Table>
@@ -166,8 +204,16 @@ export default function Receiving() {
                         Ver OC
                       </Button>
                       {po.status === 'pendente' && (
-                        <Button size="sm" onClick={() => receivePurchaseOrder(po.id)}>
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                        <Button
+                          size="sm"
+                          onClick={() => receivePurchaseOrder(po.id)}
+                          disabled={receivingId === po.id}
+                        >
+                          {receivingId === po.id ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                          )}
                           Confirmar
                         </Button>
                       )}
@@ -203,13 +249,17 @@ export default function Receiving() {
                   <p className="text-sm text-slate-500">
                     Data Acordada:{' '}
                     <span className="font-medium text-slate-700">
-                      {format(new Date(selectedPo.expectedDeliveryDate), 'dd/MM/yyyy')}
+                      {selectedPo.expectedDeliveryDate
+                        ? format(new Date(selectedPo.expectedDeliveryDate), 'dd/MM/yyyy')
+                        : '-'}
                     </span>
                   </p>
                   <p className="text-sm text-slate-500">
                     Hora Acordada:{' '}
                     <span className="font-medium text-slate-700">
-                      {format(new Date(selectedPo.expectedDeliveryDate), 'HH:mm')}
+                      {selectedPo.expectedDeliveryDate
+                        ? format(new Date(selectedPo.expectedDeliveryDate), 'HH:mm')
+                        : '-'}
                     </span>
                   </p>
                 </div>

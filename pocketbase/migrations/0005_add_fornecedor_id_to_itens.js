@@ -11,13 +11,13 @@ migrate(
         maxSelect: 1,
       }),
     )
-    itens.addIndex('idx_itens_fornecedor', false, 'fornecedor_id', '')
+    itens.indexes.push('CREATE INDEX idx_itens_fornecedor ON itens (fornecedor_id)')
     app.save(itens)
   },
   (app) => {
     const itens = app.findCollectionByNameOrId('itens')
     itens.fields.removeByName('fornecedor_id')
-    itens.removeIndex('idx_itens_fornecedor')
+    itens.indexes = itens.indexes.filter((idx) => !idx.includes('idx_itens_fornecedor'))
     app.save(itens)
   },
 )

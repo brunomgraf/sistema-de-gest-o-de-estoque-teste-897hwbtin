@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-07T02:37:03.512Z",
+  "generatedAt": "2026-04-07T14:28:21.562Z",
   "collections": [
     {
       "name": "users",
@@ -37,6 +37,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "role",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["admin", "gestor", "operador"]
         }
       ],
       "indexes": [
@@ -45,305 +52,48 @@
       ]
     },
     {
-      "name": "items",
+      "name": "itens",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.role = 'admin'"
       },
       "fields": [
         {
-          "name": "code",
+          "name": "nome",
           "type": "text",
           "required": true,
           "system": false
         },
         {
-          "name": "name",
+          "name": "sku",
           "type": "text",
           "required": true,
           "system": false
         },
         {
-          "name": "current_quantity",
+          "name": "quantidade_atual",
           "type": "number",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
-          "name": "min_quantity",
+          "name": "quantidade_minima",
           "type": "number",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
-          "name": "cost_price",
+          "name": "valor_unitario",
           "type": "number",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "created",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate"]
-        },
-        {
-          "name": "updated",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
-        },
-        {
-          "name": "suppliers",
-          "type": "relation",
-          "required": false,
-          "system": false,
-          "collectionRef": "suppliers"
-        },
-        {
-          "name": "shelf_location",
-          "type": "text",
-          "required": false,
-          "system": false
-        }
-      ],
-      "indexes": []
-    },
-    {
-      "name": "stock_movements",
-      "type": "base",
-      "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
-      },
-      "fields": [
-        {
-          "name": "item_id",
-          "type": "relation",
-          "required": true,
-          "system": false,
-          "collectionRef": "items"
-        },
-        {
-          "name": "type",
-          "type": "text",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "quantity",
-          "type": "number",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "unit_price",
-          "type": "number",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "production_order",
-          "type": "text",
           "required": false,
           "system": false
         },
         {
-          "name": "observation",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "user_id",
-          "type": "relation",
-          "required": true,
-          "system": false,
-          "collectionRef": "users"
-        },
-        {
-          "name": "created",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate"]
-        },
-        {
-          "name": "updated",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
-        },
-        {
-          "name": "usage_type",
-          "type": "text",
-          "required": true,
-          "system": false
-        }
-      ],
-      "indexes": ["CREATE INDEX idx_stock_movements_po ON stock_movements (production_order)"]
-    },
-    {
-      "name": "suppliers",
-      "type": "base",
-      "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
-      },
-      "fields": [
-        {
-          "name": "name",
-          "type": "text",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "email",
-          "type": "email",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "phone",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "created",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate"]
-        },
-        {
-          "name": "updated",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
-        }
-      ],
-      "indexes": []
-    },
-    {
-      "name": "purchase_requests",
-      "type": "base",
-      "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
-      },
-      "fields": [
-        {
-          "name": "item_id",
-          "type": "relation",
-          "required": true,
-          "system": false,
-          "collectionRef": "items"
-        },
-        {
-          "name": "quantity",
-          "type": "number",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "status",
-          "type": "text",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "user_id",
-          "type": "relation",
-          "required": true,
-          "system": false,
-          "collectionRef": "users"
-        },
-        {
-          "name": "created",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate"]
-        },
-        {
-          "name": "updated",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
-        }
-      ],
-      "indexes": []
-    },
-    {
-      "name": "quotations",
-      "type": "base",
-      "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
-      },
-      "fields": [
-        {
-          "name": "request_id",
-          "type": "relation",
-          "required": true,
-          "system": false,
-          "collectionRef": "purchase_requests"
-        },
-        {
-          "name": "supplier_id",
-          "type": "relation",
-          "required": true,
-          "system": false,
-          "collectionRef": "suppliers"
-        },
-        {
-          "name": "price",
-          "type": "number",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "delivery_dt",
-          "type": "date",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "payment_method",
-          "type": "text",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "shipping_method",
-          "type": "text",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "is_selected",
+          "name": "status_critico",
           "type": "bool",
           "required": false,
           "system": false
@@ -363,7 +113,302 @@
           "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
-      "indexes": []
+      "indexes": ["CREATE UNIQUE INDEX idx_itens_sku ON itens (sku)"]
+    },
+    {
+      "name": "fornecedores",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.role = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "nome",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "email",
+          "type": "email",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "telefone",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "endereco",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_fornecedores_nome ON fornecedores (nome)"]
+    },
+    {
+      "name": "ordens_compra",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.role = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "fornecedor_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "fornecedores"
+        },
+        {
+          "name": "data_pedido",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_entrega_prevista",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["pendente", "entregue", "cancelado"]
+        },
+        {
+          "name": "valor_total",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_oc_fornecedor ON ordens_compra (fornecedor_id)",
+        "CREATE INDEX idx_oc_status ON ordens_compra (status)"
+      ]
+    },
+    {
+      "name": "itens_ordem_compra",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.role = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "ordem_compra_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "ordens_compra"
+        },
+        {
+          "name": "item_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "itens"
+        },
+        {
+          "name": "quantidade",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "valor_unitario",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_ioc_ordem ON itens_ordem_compra (ordem_compra_id)",
+        "CREATE INDEX idx_ioc_item ON itens_ordem_compra (item_id)"
+      ]
+    },
+    {
+      "name": "recebimento",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.role = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "ordem_compra_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "ordens_compra"
+        },
+        {
+          "name": "data_recebimento",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "quantidade_recebida",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status_verificacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_recebimento_oc ON recebimento (ordem_compra_id)"]
+    },
+    {
+      "name": "movimentacoes",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.role = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "item_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "itens"
+        },
+        {
+          "name": "tipo_movimento",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["entrada", "saida"]
+        },
+        {
+          "name": "quantidade",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_movimento",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "motivo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "usuario_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_mov_item ON movimentacoes (item_id)",
+        "CREATE INDEX idx_mov_usuario ON movimentacoes (usuario_id)"
+      ]
     }
   ]
 }

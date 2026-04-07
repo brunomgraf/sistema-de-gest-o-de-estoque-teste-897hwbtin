@@ -11,7 +11,7 @@ migrate(
         maxSelect: 1,
       }),
     )
-    itens.addIndex('CREATE INDEX idx_itens_fornecedor ON itens (fornecedor_id)')
+    itens.addIndex('idx_itens_fornecedor', false, 'fornecedor_id', '')
     app.save(itens)
   },
   (app) => {

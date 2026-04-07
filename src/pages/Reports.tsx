@@ -62,12 +62,12 @@ export default function Reports() {
 
   const handleExport = () => {
     const csvContent =
-      'data:text/csv;charset=utf-8,Data,Item,Tipo,Quantidade,Motivo,Usuário\n' +
+      'data:text/csv;charset=utf-8,Data,Item,Tipo,Quantidade,Motivo,Usuário,Solicitante,OS\n' +
       filteredMovements
         .map((m) => {
           const itemName = m.expand?.item_id?.nome || '-'
           const userName = m.expand?.usuario_id?.name || '-'
-          return `${formatDate(m.data_movimento)},${itemName},${m.tipo_movimento},${m.quantidade},${m.motivo || ''},${userName}`
+          return `${formatDate(m.data_movimento)},${itemName},${m.tipo_movimento},${m.quantidade},${m.motivo || ''},${userName},${m.solicitante || ''},${m.ordem_servico || ''}`
         })
         .join('\n')
 
@@ -117,18 +117,20 @@ export default function Reports() {
                 <TableHead className="text-right">Qtd</TableHead>
                 <TableHead>Motivo</TableHead>
                 <TableHead>Usuário</TableHead>
+                <TableHead>Solicitante</TableHead>
+                <TableHead>OS</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24">
+                  <TableCell colSpan={8} className="h-24">
                     <Skeleton className="h-20 w-full" />
                   </TableCell>
                 </TableRow>
               ) : filteredMovements.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                     Nenhuma movimentação encontrada.
                   </TableCell>
                 </TableRow>
@@ -158,6 +160,8 @@ export default function Reports() {
                     <TableCell className="text-muted-foreground text-sm">
                       {m.expand?.usuario_id?.name || '-'}
                     </TableCell>
+                    <TableCell>{m.solicitante || '-'}</TableCell>
+                    <TableCell>{m.ordem_servico || '-'}</TableCell>
                   </TableRow>
                 ))
               )}

@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 const schema = z.object({
   quantity: z.coerce.number().min(1, 'Quantidade deve ser maior que zero'),
   observation: z.string().optional(),
-  requestedBy: z.string().min(1, 'Nome do solicitante é obrigatório'),
+  solicitante: z.string().min(1, 'Nome do solicitante é obrigatório'),
   ordem_servico: z.string().min(1, 'Ordem de Serviço é obrigatória'),
 })
 
@@ -29,7 +29,7 @@ type StockOutFormProps = {
 export function StockOutForm({ maxQuantity, onSubmit, onCancel }: StockOutFormProps) {
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { quantity: 1, observation: '', requestedBy: '', ordem_servico: '' },
+    defaultValues: { quantity: 1, observation: '', solicitante: '', ordem_servico: '' },
   })
 
   const handleSubmit = (data: z.infer<typeof schema>) => {
@@ -58,10 +58,10 @@ export function StockOutForm({ maxQuantity, onSubmit, onCancel }: StockOutFormPr
         />
         <FormField
           control={form.control}
-          name="requestedBy"
+          name="solicitante"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Solicitado por</FormLabel>
+              <FormLabel>Solicitante</FormLabel>
               <FormControl>
                 <Input {...field} placeholder="Nome do solicitante" />
               </FormControl>
@@ -100,7 +100,7 @@ export function StockOutForm({ maxQuantity, onSubmit, onCancel }: StockOutFormPr
             Cancelar
           </Button>
           <Button type="submit" variant="destructive">
-            Confirmar Baixa
+            Confirmar Saída
           </Button>
         </div>
       </form>

@@ -45,8 +45,8 @@ export interface Movement {
   date: string
   observation?: string
   userId: string
-  requestedBy?: string
-  productionOrder?: string
+  solicitante?: string
+  ordem_servico?: string
   unitPrice?: number
 }
 

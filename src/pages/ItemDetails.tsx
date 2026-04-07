@@ -211,6 +211,7 @@ export default function ItemDetails() {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Qtd</TableHead>
                     <TableHead>OS</TableHead>
+                    <TableHead>Solicitante</TableHead>
                     <TableHead>Usuário</TableHead>
                     <TableHead>Obs</TableHead>
                   </TableRow>
@@ -233,6 +234,7 @@ export default function ItemDetails() {
                       </TableCell>
                       <TableCell className="font-medium">{m.quantidade}</TableCell>
                       <TableCell>{m.ordem_servico || '-'}</TableCell>
+                      <TableCell>{m.solicitante || '-'}</TableCell>
                       <TableCell>{m.expand?.usuario_id?.name || '-'}</TableCell>
                       <TableCell className="text-muted-foreground truncate max-w-[150px]">
                         {m.motivo || '-'}
@@ -241,7 +243,7 @@ export default function ItemDetails() {
                   ))}
                   {itemMovements.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center">
+                      <TableCell colSpan={7} className="text-center">
                         Sem movimentações
                       </TableCell>
                     </TableRow>

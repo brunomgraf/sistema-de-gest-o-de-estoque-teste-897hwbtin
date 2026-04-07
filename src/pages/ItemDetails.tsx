@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowDownToLine, ExternalLink, PackageOpen, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { formatCurrency, formatDate } from '@/lib/format'
@@ -27,18 +26,6 @@ import { ItemStatusBadge } from '@/components/ItemStatusBadge'
 import { StockOutForm } from '@/components/forms/StockOutForm'
 import { ItemForm } from '@/components/forms/ItemForm'
 import { Skeleton } from '@/components/ui/skeleton'
-
-const PREFERENCE_LABELS = {
-  primary: 'Preferencial',
-  secondary: 'Secundário',
-  tertiary: 'Terciário',
-} as const
-
-const PREFERENCE_COLORS = {
-  primary: 'bg-green-100 text-green-700 hover:bg-green-200',
-  secondary: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
-  tertiary: 'bg-slate-100 text-slate-700 hover:bg-slate-200',
-} as const
 
 export default function ItemDetails() {
   const { id } = useParams()
@@ -53,7 +40,7 @@ export default function ItemDetails() {
   const loadData = async () => {
     if (!id) return
     try {
-      const itemRes = await pb.collection('itens').getOne(id)
+      const itemRes = await pb.collection('itens').getOne(id, { expand: 'fornecedor_id' })
       setItem({
         id: itemRes.id,
         code: itemRes.sku,
@@ -61,7 +48,12 @@ export default function ItemDetails() {
         currentQuantity: itemRes.quantidade_atual,
         minQuantity: itemRes.quantidade_minima,
         costPrice: itemRes.valor_unitario,
-        suppliers: [],
+        fornecedor_id: itemRes.fornecedor_id,
+        fornecedor_nome: itemRes.expand?.fornecedor_id?.nome || null,
+        fornecedor_email: itemRes.expand?.fornecedor_id?.email || null,
+        fornecedor_telefone: itemRes.expand?.fornecedor_id?.telefone || null,
+        pdfUrl: itemRes.pdfUrl,
+        shelfLocation: itemRes.shelfLocation,
       })
 
       const movs = await pb.collection('movimentacoes').getList(1, 10, {
@@ -95,6 +87,7 @@ export default function ItemDetails() {
       quantidade_minima: data.minQuantity,
       valor_unitario: data.costPrice,
       status_critico: data.currentQuantity <= data.minQuantity,
+      fornecedor_id: data.fornecedor_id || null,
     })
   }
 
@@ -233,50 +226,22 @@ export default function ItemDetails() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Fornecedores Vinculados</CardTitle>
+              <CardTitle className="text-lg">Fornecedor Principal</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fornecedor</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Classificação</TableHead>
-                    <TableHead>Lead Time</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {item.suppliers.map((itemSupplier) => {
-                    const sup = suppliers.find((s) => s.id === itemSupplier.supplierId)
-                    if (!sup) return null
-                    return (
-                      <TableRow key={`${sup.id}-${itemSupplier.preference}`}>
-                        <TableCell className="font-medium">{sup.name}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">{sup.contact}</div>
-                          <div className="text-xs text-muted-foreground">{sup.phone}</div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={PREFERENCE_COLORS[itemSupplier.preference]}
-                            variant="secondary"
-                          >
-                            {PREFERENCE_LABELS[itemSupplier.preference]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{sup.leadTime} dias</TableCell>
-                      </TableRow>
-                    )
-                  })}
-                  {item.suppliers.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
-                        Nenhum fornecedor vinculado.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+              {item.fornecedor_nome ? (
+                <div className="space-y-2">
+                  <div className="text-lg font-semibold">{item.fornecedor_nome}</div>
+                  <div className="text-sm text-muted-foreground">
+                    Email: {item.fornecedor_email || 'Não informado'}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Telefone: {item.fornecedor_telefone || 'Não informado'}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-muted-foreground">Nenhum fornecedor associado.</div>
+              )}
             </CardContent>
           </Card>
 
@@ -291,7 +256,6 @@ export default function ItemDetails() {
                     <TableHead>Data</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Qtd</TableHead>
-                    <TableHead>OP</TableHead>
                     <TableHead>Solicitado por</TableHead>
                     <TableHead>Obs</TableHead>
                   </TableRow>
@@ -313,7 +277,6 @@ export default function ItemDetails() {
                         </Badge>
                       </TableCell>
                       <TableCell className="font-medium">{m.quantidade}</TableCell>
-                      <TableCell>-</TableCell>
                       <TableCell>{m.expand?.usuario_id?.name || '-'}</TableCell>
                       <TableCell className="text-muted-foreground truncate max-w-[150px]">
                         {m.motivo || '-'}
@@ -322,7 +285,7 @@ export default function ItemDetails() {
                   ))}
                   {itemMovements.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center">
+                      <TableCell colSpan={5} className="text-center">
                         Sem movimentações
                       </TableCell>
                     </TableRow>

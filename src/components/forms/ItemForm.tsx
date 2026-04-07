@@ -1,7 +1,8 @@
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import pb from '@/lib/pocketbase/client'
 import {
   Form,
   FormControl,
@@ -19,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import useMainStore from '@/stores/main'
 
 const schema = z.object({
   code: z.string().min(1, 'Código é obrigatório'),
@@ -29,14 +29,7 @@ const schema = z.object({
   costPrice: z.coerce.number().min(0),
   pdfUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   shelfLocation: z.string().optional().or(z.literal('')),
-  suppliers: z
-    .array(
-      z.object({
-        supplierId: z.string().min(1, 'Selecione um fornecedor'),
-        preference: z.enum(['primary', 'secondary', 'tertiary']),
-      }),
-    )
-    .min(1, 'Adicione pelo menos um fornecedor'),
+  fornecedor_id: z.string().optional().or(z.literal('')),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -50,24 +43,24 @@ export function ItemForm({
   onSubmit: (data: FormValues) => void
   onCancel: () => void
 }) {
-  const { suppliers } = useMainStore()
+  const [fornecedores, setFornecedores] = useState<any[]>([])
+
+  useEffect(() => {
+    pb.collection('fornecedores').getFullList({ sort: 'nome' }).then(setFornecedores)
+  }, [])
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: defaultValues || {
-      code: '',
-      name: '',
-      currentQuantity: 0,
-      minQuantity: 0,
-      costPrice: 0,
-      pdfUrl: '',
-      shelfLocation: '',
-      suppliers: [{ supplierId: '', preference: 'primary' }],
+    defaultValues: {
+      code: defaultValues?.code || '',
+      name: defaultValues?.name || '',
+      currentQuantity: defaultValues?.currentQuantity || 0,
+      minQuantity: defaultValues?.minQuantity || 0,
+      costPrice: defaultValues?.costPrice || 0,
+      pdfUrl: defaultValues?.pdfUrl || '',
+      shelfLocation: defaultValues?.shelfLocation || '',
+      fornecedor_id: defaultValues?.fornecedor_id || '',
     },
-  })
-
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: 'suppliers',
   })
 
   return (
@@ -142,81 +135,34 @@ export function ItemForm({
         </div>
 
         <div className="space-y-3 border p-4 rounded-md bg-muted/20">
-          <div className="flex items-center justify-between">
-            <FormLabel className="text-base font-semibold">Fornecedores Vinculados</FormLabel>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => append({ supplierId: '', preference: 'primary' })}
-            >
-              <Plus className="w-4 h-4 mr-2" /> Adicionar Fornecedor
-            </Button>
-          </div>
-
-          {fields.map((field, index) => (
-            <div key={field.id} className="flex gap-2 items-start">
-              <FormField
-                control={form.control}
-                name={`suppliers.${index}.supplierId`}
-                render={({ field }) => (
-                  <FormItem className="flex-1">
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione um fornecedor" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {suppliers.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name={`suppliers.${index}.preference`}
-                render={({ field }) => (
-                  <FormItem className="w-[180px]">
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Preferência" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="primary">Preferencial</SelectItem>
-                        <SelectItem value="secondary">Secundário</SelectItem>
-                        <SelectItem value="tertiary">Terciário</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => remove(index)}
-                className="mt-0.5"
-                disabled={fields.length === 1}
-              >
-                <Trash2 className="w-4 h-4 text-red-500" />
-              </Button>
-            </div>
-          ))}
-          {form.formState.errors.suppliers?.root && (
-            <p className="text-sm font-medium text-destructive">
-              {form.formState.errors.suppliers.root.message}
-            </p>
-          )}
+          <FormField
+            control={form.control}
+            name="fornecedor_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Fornecedor (Opcional)</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um fornecedor" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {fornecedores.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-4">

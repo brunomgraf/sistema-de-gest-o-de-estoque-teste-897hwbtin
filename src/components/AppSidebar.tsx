@@ -8,6 +8,7 @@ import {
   ArrowDownToLine,
   FileCheck,
   LogOut,
+  PackageMinus,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -25,6 +26,7 @@ import { useAuth } from '@/hooks/use-auth'
 const MENU_ITEMS = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Estoque', url: '/estoque', icon: Package },
+  { title: 'Saída de Estoque', url: '/saida-estoque', icon: PackageMinus },
   { title: 'Compras', url: '/compras', icon: ShoppingBag },
   { title: 'Ordens de Compra', url: '/ordens-de-compra', icon: FileCheck },
   { title: 'Recebimento', url: '/recebimento', icon: ArrowDownToLine },

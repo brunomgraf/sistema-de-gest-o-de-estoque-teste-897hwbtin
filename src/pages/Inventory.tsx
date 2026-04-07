@@ -93,6 +93,7 @@ export default function Inventory() {
         quantidade_minima: data.minQuantity || 0,
         valor_unitario: data.costPrice || 0,
         status_critico: (data.currentQuantity || 0) <= (data.minQuantity || 0),
+        fornecedor_id: data.fornecedor_id || null,
       })
       setOpen(false)
     } catch (e) {

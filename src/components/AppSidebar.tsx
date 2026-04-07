@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Package,
@@ -7,10 +7,12 @@ import {
   ShoppingBag,
   ArrowDownToLine,
   FileCheck,
+  LogOut,
 } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -18,7 +20,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
-import useMainStore from '@/stores/main'
+import { useAuth } from '@/hooks/use-auth'
 
 const MENU_ITEMS = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
@@ -32,7 +34,13 @@ const MENU_ITEMS = [
 
 export function AppSidebar() {
   const location = useLocation()
-  const { user } = useMainStore()
+  const { signOut, user } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    signOut()
+    navigate('/login')
+  }
 
   return (
     <Sidebar>
@@ -63,6 +71,30 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="border-t p-4">
+        <div className="flex items-center gap-3 mb-4 px-2">
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-medium text-primary uppercase">
+              {user?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
+            </span>
+          </div>
+          <div className="flex flex-col overflow-hidden">
+            <span className="text-sm font-medium truncate">{user?.name || 'Usuário'}</span>
+            <span className="text-xs text-muted-foreground truncate">{user?.email}</span>
+          </div>
+        </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={handleLogout}
+              className="text-red-500 hover:text-red-600 hover:bg-red-50"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Sair do sistema</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   )
 }

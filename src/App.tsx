@@ -7,8 +7,11 @@ import { MainStoreProvider } from '@/stores/main'
 import { AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { AuthProvider, useAuth } from '@/hooks/use-auth'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import { Navigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Inventory from './pages/Inventory'
 import ItemDetails from './pages/ItemDetails'
@@ -20,18 +23,22 @@ import Receiving from './pages/Receiving'
 import NotFound from './pages/NotFound'
 
 const AppContent = () => {
+  const { user } = useAuth()
+
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route element={<Layout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/estoque" element={<Inventory />} />
-        <Route path="/estoque/:id" element={<ItemDetails />} />
-        <Route path="/compras" element={<Purchases />} />
-        <Route path="/ordens-de-compra" element={<PurchaseOrders />} />
-        <Route path="/recebimento" element={<Receiving />} />
-        <Route path="/fornecedores" element={<Suppliers />} />
-        <Route path="/relatorios" element={<Reports />} />
+      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/estoque" element={<Inventory />} />
+          <Route path="/estoque/:id" element={<ItemDetails />} />
+          <Route path="/compras" element={<Purchases />} />
+          <Route path="/ordens-de-compra" element={<PurchaseOrders />} />
+          <Route path="/recebimento" element={<Receiving />} />
+          <Route path="/fornecedores" element={<Suppliers />} />
+          <Route path="/relatorios" element={<Reports />} />
+        </Route>
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
@@ -40,13 +47,15 @@ const AppContent = () => {
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
-    <MainStoreProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner position="top-center" />
-        <AppContent />
-      </TooltipProvider>
-    </MainStoreProvider>
+    <AuthProvider>
+      <MainStoreProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner position="top-center" />
+          <AppContent />
+        </TooltipProvider>
+      </MainStoreProvider>
+    </AuthProvider>
   </BrowserRouter>
 )
 

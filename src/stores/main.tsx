@@ -20,8 +20,6 @@ interface MainStore {
   movements: Movement[]
   purchaseTickets: PurchaseTicket[]
   purchaseOrders: PurchaseOrder[]
-  login: (email: string) => void
-  logout: () => void
   addItem: (item: Omit<Item, 'id'>) => void
   updateItem: (id: string, item: Partial<Item>) => void
   addSupplier: (supplier: Omit<Supplier, 'id'>) => void
@@ -37,7 +35,7 @@ interface MainStore {
 const StoreContext = createContext<MainStore | undefined>(undefined)
 
 export function MainStoreProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(MOCK_USERS[0]) // Auto-login for demo
+  const [user, setUser] = useState<User | null>(null)
   const [items, setItems] = useState<Item[]>(MOCK_ITEMS)
   const [suppliers, setSuppliers] = useState<Supplier[]>(MOCK_SUPPLIERS)
   const [movements, setMovements] = useState<Movement[]>(MOCK_MOVEMENTS)
@@ -53,26 +51,6 @@ export function MainStoreProvider({ children }: { children: ReactNode }) {
     }))
   })
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
-
-  const login = (email: string) => {
-    const found = MOCK_USERS.find((u) => u.email === email)
-    if (found) {
-      setUser(found)
-      toast({ title: 'Login efetuado com sucesso', description: `Bem-vindo, ${found.name}!` })
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Erro de login',
-        description: 'Usuário não encontrado.',
-      })
-      throw new Error('User not found')
-    }
-  }
-
-  const logout = () => {
-    setUser(null)
-    toast({ title: 'Logout', description: 'Você saiu do sistema.' })
-  }
 
   const addItem = (item: Omit<Item, 'id'>) => {
     const newItem = { ...item, id: `i${Date.now()}` }
@@ -250,8 +228,6 @@ export function MainStoreProvider({ children }: { children: ReactNode }) {
         items,
         suppliers,
         movements,
-        login,
-        logout,
         addItem,
         updateItem,
         addSupplier,

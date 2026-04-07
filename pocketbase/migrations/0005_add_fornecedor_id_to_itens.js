@@ -20,4 +20,20 @@ migrate(
 
     // Clear any malformed indexes that might have caused the issue
     if (col.indexes) {
-      col.indexes =
+      col.indexes = col.indexes.filter(
+        (idx) => idx.toUpperCase().includes('CREATE INDEX ') && idx.toUpperCase().includes(' ON '),
+      )
+    }
+
+    // Safely add the new index using the built-in helper
+    col.addIndex('idx_itens_fornecedor_id', false, 'fornecedor_id', '')
+
+    app.save(col)
+  },
+  (app) => {
+    const col = app.findCollectionByNameOrId('itens')
+    col.removeIndex('idx_itens_fornecedor_id')
+    col.fields.removeByName('fornecedor_id')
+    app.save(col)
+  },
+)

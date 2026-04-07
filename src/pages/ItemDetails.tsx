@@ -186,7 +186,8 @@ export default function ItemDetails() {
                     userId: user!.id,
                     requestedBy: d.requestedBy,
                     ordem_servico: d.ordem_servico,
-                  } as any)                  setStockOutOpen(false)
+                  } as any)
+                  setStockOutOpen(false)
                 }}
                 onCancel={() => setStockOutOpen(false)}
               />

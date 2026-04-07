@@ -17,7 +17,7 @@ const schema = z.object({
   quantity: z.coerce.number().min(1, 'Quantidade deve ser maior que zero'),
   observation: z.string().optional(),
   requestedBy: z.string().min(1, 'Nome do solicitante é obrigatório'),
-  productionOrder: z.string().min(1, 'Ordem de Produção é obrigatória'),
+  ordem_servico: z.string().min(1, 'Ordem de Serviço é obrigatória'),
 })
 
 type StockOutFormProps = {
@@ -29,7 +29,7 @@ type StockOutFormProps = {
 export function StockOutForm({ maxQuantity, onSubmit, onCancel }: StockOutFormProps) {
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { quantity: 1, observation: '', requestedBy: '', productionOrder: '' },
+    defaultValues: { quantity: 1, observation: '', requestedBy: '', ordem_servico: '' },
   })
 
   const handleSubmit = (data: z.infer<typeof schema>) => {
@@ -71,12 +71,12 @@ export function StockOutForm({ maxQuantity, onSubmit, onCancel }: StockOutFormPr
         />
         <FormField
           control={form.control}
-          name="productionOrder"
+          name="ordem_servico"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Ordem de Produção (OP)</FormLabel>
+              <FormLabel>Ordem de Serviço (OS)</FormLabel>
               <FormControl>
-                <Input {...field} placeholder="Ex: OP-2023-001" />
+                <Input {...field} placeholder="Ex: OS-2023-001" />
               </FormControl>
               <FormMessage />
             </FormItem>

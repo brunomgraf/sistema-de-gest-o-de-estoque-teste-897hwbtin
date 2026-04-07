@@ -97,6 +97,7 @@ export default function ItemDetails() {
       tipo_movimento: data.type === 'in' ? 'entrada' : 'saida',
       quantidade: data.quantity,
       motivo: data.observation,
+      ordem_servico: data.ordem_servico,
       usuario_id: data.userId,
       data_movimento: new Date().toISOString(),
     })
@@ -184,8 +185,8 @@ export default function ItemDetails() {
                     observation: d.observation,
                     userId: user!.id,
                     requestedBy: d.requestedBy,
-                  } as any)
-                  setStockOutOpen(false)
+                    ordem_servico: d.ordem_servico,
+                  } as any)                  setStockOutOpen(false)
                 }}
                 onCancel={() => setStockOutOpen(false)}
               />
@@ -256,7 +257,8 @@ export default function ItemDetails() {
                     <TableHead>Data</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Qtd</TableHead>
-                    <TableHead>Solicitado por</TableHead>
+                    <TableHead>OS</TableHead>
+                    <TableHead>Usuário</TableHead>
                     <TableHead>Obs</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -277,6 +279,7 @@ export default function ItemDetails() {
                         </Badge>
                       </TableCell>
                       <TableCell className="font-medium">{m.quantidade}</TableCell>
+                      <TableCell>{m.ordem_servico || '-'}</TableCell>
                       <TableCell>{m.expand?.usuario_id?.name || '-'}</TableCell>
                       <TableCell className="text-muted-foreground truncate max-w-[150px]">
                         {m.motivo || '-'}

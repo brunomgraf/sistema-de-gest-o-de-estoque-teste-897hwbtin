@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowDownToLine, ExternalLink, PackageOpen, ArrowLeft } from 'lucide-react'
+import { ExternalLink, PackageOpen, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -23,7 +23,6 @@ import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { ItemStatusBadge } from '@/components/ItemStatusBadge'
-import { StockOutForm } from '@/components/forms/StockOutForm'
 import { ItemForm } from '@/components/forms/ItemForm'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -34,7 +33,6 @@ export default function ItemDetails() {
   const [loading, setLoading] = useState(true)
 
   const user = pb.authStore.record
-  const [stockOutOpen, setStockOutOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
 
   const loadData = async () => {
@@ -80,37 +78,18 @@ export default function ItemDetails() {
   })
 
   const updateItem = async (itemId: string, data: any) => {
+    const currentItem = await pb.collection('itens').getOne(itemId)
+    const qty =
+      data.currentQuantity !== undefined ? data.currentQuantity : currentItem.quantidade_atual
+
     await pb.collection('itens').update(itemId, {
       nome: data.name,
       sku: data.code,
-      quantidade_atual: data.currentQuantity,
+      quantidade_atual: qty,
       quantidade_minima: data.minQuantity,
       valor_unitario: data.costPrice,
-      status_critico: data.currentQuantity <= data.minQuantity,
+      status_critico: qty <= data.minQuantity,
       fornecedor_id: data.fornecedor_id || null,
-    })
-  }
-
-  const recordMovement = async (data: any) => {
-    await pb.collection('movimentacoes').create({
-      item_id: data.itemId,
-      tipo_movimento: data.type === 'in' ? 'entrada' : 'saida',
-      quantidade: data.quantity,
-      motivo: data.observation,
-      ordem_servico: data.ordem_servico,
-      usuario_id: data.userId,
-      data_movimento: new Date().toISOString(),
-    })
-
-    const currentItem = await pb.collection('itens').getOne(data.itemId)
-    const newQtd =
-      data.type === 'in'
-        ? currentItem.quantidade_atual + data.quantity
-        : currentItem.quantidade_atual - data.quantity
-
-    await pb.collection('itens').update(data.itemId, {
-      quantidade_atual: newQtd,
-      status_critico: newQtd <= currentItem.quantidade_minima,
     })
   }
 
@@ -156,6 +135,7 @@ export default function ItemDetails() {
                 </DialogHeader>
                 <ItemForm
                   defaultValues={item}
+                  isEditing={true}
                   onSubmit={(d) => {
                     updateItem(item.id, d)
                     setEditOpen(false)
@@ -165,34 +145,6 @@ export default function ItemDetails() {
               </DialogContent>
             </Dialog>
           )}
-          <Dialog open={stockOutOpen} onOpenChange={setStockOutOpen}>
-            <DialogTrigger asChild>
-              <Button variant="destructive" className="bg-red-600 hover:bg-red-700">
-                <ArrowDownToLine className="mr-2 h-4 w-4" /> Dar Baixa
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Registrar Baixa de Estoque</DialogTitle>
-              </DialogHeader>
-              <StockOutForm
-                maxQuantity={item.currentQuantity}
-                onSubmit={(d) => {
-                  recordMovement({
-                    itemId: item.id,
-                    type: 'out',
-                    quantity: d.quantity,
-                    observation: d.observation,
-                    userId: user!.id,
-                    requestedBy: d.requestedBy,
-                    ordem_servico: d.ordem_servico,
-                  } as any)
-                  setStockOutOpen(false)
-                }}
-                onCancel={() => setStockOutOpen(false)}
-              />
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 

@@ -36,10 +36,12 @@ type FormValues = z.infer<typeof schema>
 
 export function ItemForm({
   defaultValues,
+  isEditing = false,
   onSubmit,
   onCancel,
 }: {
   defaultValues?: Partial<FormValues>
+  isEditing?: boolean
   onSubmit: (data: FormValues) => void
   onCancel: () => void
 }) {
@@ -100,8 +102,18 @@ export function ItemForm({
               <FormItem>
                 <FormLabel>Quantidade Atual</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} />
+                  <Input
+                    type="number"
+                    readOnly={isEditing}
+                    className={isEditing ? 'bg-muted' : ''}
+                    {...field}
+                  />
                 </FormControl>
+                {isEditing && (
+                  <p className="text-[0.8rem] text-muted-foreground mt-1">
+                    Para registrar saídas, utilize o menu Saída de Estoque.
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )}

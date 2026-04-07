@@ -1,28 +1,60 @@
-/* Main App Component - Handles routing (using react-router-dom), query client and other providers - use this file to add all routes */
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import Index from './pages/Index'
-import NotFound from './pages/NotFound'
-import Layout from './components/Layout'
+import { useEffect } from 'react'
+import { MainStoreProvider } from '@/stores/main'
+import { AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
 
-// ONLY IMPORT AND RENDER WORKING PAGES, NEVER ADD PLACEHOLDER COMPONENTS OR PAGES IN THIS FILE
-// AVOID REMOVING ANY CONTEXT PROVIDERS FROM THIS FILE (e.g. TooltipProvider, Toaster, Sonner)
+import Layout from './components/Layout'
+import Login from './pages/Login'
+import Dashboard from './pages/Dashboard'
+import Inventory from './pages/Inventory'
+import ItemDetails from './pages/ItemDetails'
+import Suppliers from './pages/Suppliers'
+import Reports from './pages/Reports'
+import Purchases from './pages/Purchases'
+import PurchaseOrders from './pages/PurchaseOrders'
+import Receiving from './pages/Receiving'
+import NotFound from './pages/NotFound'
+
+const AppContent = () => {
+  useEffect(() => {
+    toast('Aviso de Persistência', {
+      description:
+        'O sistema está operando com dados de demonstração (mock). Nenhuma conexão com banco de dados detectada.',
+      icon: <AlertTriangle className="text-yellow-500" />,
+      duration: 10000,
+    })
+  }, [])
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route element={<Layout />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/estoque" element={<Inventory />} />
+        <Route path="/estoque/:id" element={<ItemDetails />} />
+        <Route path="/compras" element={<Purchases />} />
+        <Route path="/ordens-de-compra" element={<PurchaseOrders />} />
+        <Route path="/recebimento" element={<Receiving />} />
+        <Route path="/fornecedores" element={<Suppliers />} />
+        <Route path="/relatorios" element={<Reports />} />
+      </Route>
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  )
+}
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES MUST BE ADDED HERE */}
-        </Route>
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </TooltipProvider>
+    <MainStoreProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner position="top-center" />
+        <AppContent />
+      </TooltipProvider>
+    </MainStoreProvider>
   </BrowserRouter>
 )
 

@@ -7,6 +7,39 @@
 @tailwind components;
 @tailwind utilities;
 
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 1cm;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #printable-area,
+  #printable-area * {
+    visibility: visible;
+  }
+  #printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    min-height: 100vh;
+  }
+  html,
+  body {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  [data-radix-portal] {
+    display: none !important;
+  }
+}
+
 @layer base {
   :root {
     /* Change the colors to match the design system */

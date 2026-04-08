@@ -37,6 +37,7 @@ import {
   Printer,
   Check,
   ChevronsUpDown,
+  Loader2,
 } from 'lucide-react'
 import {
   Command,
@@ -97,18 +98,23 @@ export default function Purchases() {
     descricao_produtos: '',
   })
 
+  const [ordensCompra, setOrdensCompra] = useState<any[]>([])
+  const [isDownloading, setIsDownloading] = useState<string | null>(null)
+
   const loadData = async () => {
     try {
-      const [ticketsRes, quotesRes, suppliersRes] = await Promise.all([
+      const [ticketsRes, quotesRes, suppliersRes, ocRes] = await Promise.all([
         pb
           .collection('solicitacoes_compra')
           .getFullList({ expand: 'item_id.fornecedor_id', sort: '-created' }),
         pb.collection('cotacoes').getFullList({ expand: 'fornecedor_id' }),
         pb.collection('fornecedores').getFullList({ sort: 'nome' }),
+        pb.collection('ordens_compra').getFullList(),
       ])
       setTickets(ticketsRes)
       setQuotes(quotesRes)
       setSuppliers(suppliersRes)
+      setOrdensCompra(ocRes)
     } catch (e) {
       console.error(e)
     }
@@ -122,6 +128,7 @@ export default function Purchases() {
   useRealtime('cotacoes', loadData)
   useRealtime('fornecedores', loadData)
   useRealtime('aprovacoes_financeiras', loadData)
+  useRealtime('ordens_compra', loadData)
 
   useEffect(() => {
     if (selectedTicketId) {
@@ -135,6 +142,10 @@ export default function Purchases() {
       const item = ticket.expand?.item_id
       const defaultSupplier = item?.expand?.fornecedor_id
       const ticketQuotes = quotes.filter((q) => q.solicitacao_id === ticket.id)
+      const winnerQuote = ticketQuotes.find((q) => q.is_winner)
+      const ordemCompra = winnerQuote
+        ? ordensCompra.find((oc) => oc.cotacao_id === winnerQuote.id)
+        : null
 
       return {
         id: ticket.id,
@@ -148,6 +159,13 @@ export default function Purchases() {
         supplierName: defaultSupplier?.nome || 'Não definido',
         status: ticket.status,
         requestDate: ticket.created,
+        ordemCompra: ordemCompra
+          ? {
+              id: ordemCompra.id,
+              numero_oc: ordemCompra.numero_oc,
+              created: ordemCompra.created,
+            }
+          : null,
         quotes: ticketQuotes.map((q) => ({
           id: q.id,
           supplierId: q.fornecedor_id,
@@ -160,7 +178,7 @@ export default function Purchases() {
         })),
       }
     })
-  }, [tickets, quotes])
+  }, [tickets, quotes, ordensCompra])
 
   const selectedTicket = useMemo(() => {
     return enrichedTickets.find((t) => t.id === selectedTicketId) || null
@@ -325,6 +343,40 @@ export default function Purchases() {
       descricao_produtos: ticket?.itemName || '',
     })
     setOcFormOpen(true)
+  }
+
+  const handleDownloadOC = async (ticketId: string, ordemCompra: any) => {
+    setIsDownloading(ticketId)
+    try {
+      const res = await fetch(`${pb.baseUrl}/backend/v1/gerar-oc-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${pb.authStore.token}`,
+        },
+        body: JSON.stringify({ id_compra: ticketId }),
+      })
+
+      if (!res.ok) throw new Error('Falha ao gerar PDF')
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const dateStr = format(new Date(ordemCompra.created), 'yyyy-MM-dd')
+      a.download = `OC_${ordemCompra.numero_oc}_${dateStr}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      toast.success('Ordem de Compra baixada com sucesso!')
+    } catch (e) {
+      console.error(e)
+      toast.error('Erro ao baixar Ordem de Compra.')
+    } finally {
+      setIsDownloading(null)
+    }
   }
 
   const handleCreateOC = async () => {
@@ -952,30 +1004,58 @@ export default function Purchases() {
                             : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          {selectedTicket.status !== 'finalizado' &&
-                            selectedTicket.status !== 'cancelado' &&
-                            canFinalize && (
-                              <div className="flex items-center justify-end gap-2">
-                                {!quote.isWinner && !hasWinner && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                                    onClick={() => openApprovalModal(quote.id)}
-                                  >
-                                    <Check className="w-4 h-4 mr-2" /> Aprovar
-                                  </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            {selectedTicket.status !== 'finalizado' &&
+                              selectedTicket.status !== 'cancelado' &&
+                              canFinalize &&
+                              !quote.isWinner &&
+                              !hasWinner && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                                  onClick={() => openApprovalModal(quote.id)}
+                                >
+                                  <Check className="w-4 h-4 mr-2" /> Aprovar
+                                </Button>
+                              )}
+
+                            {quote.isWinner &&
+                              canFinalize &&
+                              !selectedTicket.ordemCompra &&
+                              selectedTicket.status !== 'cancelado' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-green-600 text-green-600 hover:bg-green-50"
+                                  onClick={() => openOcForm(quote.id)}
+                                >
+                                  <Trophy className="w-4 h-4 mr-2" /> Gerar OC
+                                </Button>
+                              )}
+
+                            {quote.isWinner && selectedTicket.ordemCompra && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-primary text-primary hover:bg-primary/5"
+                                onClick={() =>
+                                  handleDownloadOC(selectedTicket.id, selectedTicket.ordemCompra)
+                                }
+                                disabled={isDownloading === selectedTicket.id}
+                              >
+                                {isDownloading === selectedTicket.id ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Download className="w-4 h-4 mr-2" />
                                 )}
-                                {quote.isWinner && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="border-green-600 text-green-600 hover:bg-green-50"
-                                    onClick={() => openOcForm(quote.id)}
-                                  >
-                                    <Trophy className="w-4 h-4 mr-2" /> Gerar OC
-                                  </Button>
-                                )}
+                                Baixar OC (PDF)
+                              </Button>
+                            )}
+
+                            {selectedTicket.status !== 'finalizado' &&
+                              selectedTicket.status !== 'cancelado' &&
+                              canFinalize && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -984,8 +1064,8 @@ export default function Purchases() {
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
-                              </div>
-                            )}
+                              )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )

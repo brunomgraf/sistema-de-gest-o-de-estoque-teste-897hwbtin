@@ -17,13 +17,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,7 +34,17 @@ import {
   FileText,
   Download,
   Printer,
+  Check,
+  ChevronsUpDown,
 } from 'lucide-react'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -443,6 +447,7 @@ export default function Purchases() {
                 />
               </TableHead>
               <TableHead>Item</TableHead>
+              <TableHead>SKU</TableHead>
               <TableHead>Fornecedor Preferencial</TableHead>
               <TableHead className="text-right">Qtd. Atual</TableHead>
               <TableHead className="text-right">Mínima</TableHead>
@@ -455,7 +460,7 @@ export default function Purchases() {
           <TableBody>
             {enrichedTickets.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   Nenhuma solicitação de compra pendente.
                 </TableCell>
               </TableRow>
@@ -480,6 +485,7 @@ export default function Purchases() {
                     />
                   </TableCell>
                   <TableCell className="font-medium">{ticket.itemName}</TableCell>
+                  <TableCell>{ticket.itemCode}</TableCell>
                   <TableCell>{ticket.supplierName}</TableCell>
                   <TableCell
                     className={cn(
@@ -614,25 +620,54 @@ export default function Purchases() {
                     >
                       <div className="col-span-12 sm:col-span-3 space-y-2">
                         <Label>Fornecedor</Label>
-                        <Select
-                          value={draft.supplierId}
-                          onValueChange={(val) => {
-                            const newDrafts = [...draftQuotes]
-                            newDrafts[index].supplierId = val
-                            setDraftQuotes(newDrafts)
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {suppliers.map((s) => (
-                              <SelectItem key={s.id} value={s.id}>
-                                {s.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                'w-full justify-between px-3 font-normal',
+                                !draft.supplierId && 'text-muted-foreground',
+                              )}
+                            >
+                              <span className="truncate">
+                                {draft.supplierId
+                                  ? suppliers.find((s) => s.id === draft.supplierId)?.nome
+                                  : 'Selecione...'}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Buscar fornecedor..." />
+                              <CommandList>
+                                <CommandEmpty>Nenhum fornecedor encontrado.</CommandEmpty>
+                                <CommandGroup>
+                                  {suppliers.map((s) => (
+                                    <CommandItem
+                                      key={s.id}
+                                      value={s.nome}
+                                      onSelect={() => {
+                                        const newDrafts = [...draftQuotes]
+                                        newDrafts[index].supplierId = s.id
+                                        setDraftQuotes(newDrafts)
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          'mr-2 h-4 w-4',
+                                          draft.supplierId === s.id ? 'opacity-100' : 'opacity-0',
+                                        )}
+                                      />
+                                      {s.nome}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                       </div>
                       <div className="col-span-12 sm:col-span-2 space-y-2">
                         <Label>Preço Unitário (R$)</Label>

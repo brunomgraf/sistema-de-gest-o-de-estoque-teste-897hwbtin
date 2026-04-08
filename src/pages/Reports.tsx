@@ -265,11 +265,6 @@ export default function Reports() {
             </div>
           </div>
           <div className="text-right">
-            <img
-              src="/logo-graf-d601c.png"
-              alt="Oficina Graf"
-              className="h-16 w-auto object-contain mb-4 ml-auto"
-            />
             <p className="text-slate-600">
               Data de Emissão:{' '}
               <span className="font-semibold text-slate-900">
@@ -358,13 +353,13 @@ export default function Reports() {
         <div className="mt-16 pt-6 border-t-2 border-slate-800 flex flex-col items-center justify-center text-slate-600 text-sm gap-2">
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 font-medium">
             <span>
-              <strong>Endereço:</strong> [Endereço da Oficina Graf]
+              <strong>Endereço:</strong> Rua Otilio Dalçoquio n°679
             </span>
             <span>
-              <strong>Telefone:</strong> [Telefone de Contato]
+              <strong>Telefone:</strong> (47) 3341-1290
             </span>
             <span>
-              <strong>E-mail:</strong> [E-mail de Contato]
+              <strong>E-mail:</strong> financeiro@oficinagraf.com.br
             </span>
           </div>
           <div className="text-slate-400 text-xs mt-2">

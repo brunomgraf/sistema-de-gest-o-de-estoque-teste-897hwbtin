@@ -47,7 +47,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="h-16 flex items-center justify-center border-b px-6 py-2">
-        <img src="/logo-graf-d601c.png" alt="Oficina Graf" className="h-10 w-auto object-contain" />
+        <span className="text-xl font-bold tracking-tight text-primary">Oficina Graf</span>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

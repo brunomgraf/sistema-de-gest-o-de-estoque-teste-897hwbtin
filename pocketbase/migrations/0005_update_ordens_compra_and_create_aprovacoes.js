@@ -29,11 +29,21 @@ migrate(
       } catch (_) {}
     }
 
-    oc.addIndex(
-      "CREATE UNIQUE INDEX idx_oc_numero ON ordens_compra (numero_oc) WHERE numero_oc != ''",
-    )
-
+    // Salva a collection primeiro para que as novas colunas existam no banco de dados
     app.save(oc)
+
+    // Preenche dados vazios para que o índice único não falhe (gerando um valor aleatório para cada)
+    app
+      .db()
+      .newQuery(
+        "UPDATE ordens_compra SET numero_oc = 'OC-' || hex(randomblob(4)) WHERE numero_oc IS NULL OR numero_oc = ''",
+      )
+      .execute()
+
+    // Adiciona o índice único corretamente usando a API
+    const ocUpdated = app.findCollectionByNameOrId('ordens_compra')
+    ocUpdated.addIndex('idx_oc_numero', true, 'numero_oc', '')
+    app.save(ocUpdated)
 
     let aprovacoes
     try {
@@ -64,13 +74,6 @@ migrate(
       })
       app.save(aprovacoes)
     }
-
-    app
-      .db()
-      .newQuery(
-        "UPDATE ordens_compra SET numero_oc = 'OC-' || hex(randomblob(4)) WHERE numero_oc IS NULL OR numero_oc = ''",
-      )
-      .execute()
   },
   (app) => {
     try {

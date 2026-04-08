@@ -265,9 +265,11 @@ export default function Reports() {
             </div>
           </div>
           <div className="text-right">
-            <div className="w-32 h-12 bg-slate-100 rounded flex items-center justify-center mb-4 ml-auto border border-slate-200">
-              <span className="text-slate-400 font-bold tracking-widest">LOGO</span>
-            </div>
+            <img
+              src="/logo-graf-d601c.png"
+              alt="Oficina Graf"
+              className="h-16 w-auto object-contain mb-4 ml-auto"
+            />
             <p className="text-slate-600">
               Data de Emissão:{' '}
               <span className="font-semibold text-slate-900">
@@ -353,8 +355,21 @@ export default function Reports() {
           </div>
         </div>
 
-        <div className="mt-16 text-center text-slate-400 text-xs border-t border-slate-100 pt-4">
-          Documento gerado automaticamente pelo Sistema de Gestão de Estoque
+        <div className="mt-16 pt-6 border-t-2 border-slate-800 flex flex-col items-center justify-center text-slate-600 text-sm gap-2">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 font-medium">
+            <span>
+              <strong>Endereço:</strong> [Endereço da Oficina Graf]
+            </span>
+            <span>
+              <strong>Telefone:</strong> [Telefone de Contato]
+            </span>
+            <span>
+              <strong>E-mail:</strong> [E-mail de Contato]
+            </span>
+          </div>
+          <div className="text-slate-400 text-xs mt-2">
+            Documento gerado automaticamente pelo Sistema de Gestão de Estoque
+          </div>
         </div>
       </div>
     </>

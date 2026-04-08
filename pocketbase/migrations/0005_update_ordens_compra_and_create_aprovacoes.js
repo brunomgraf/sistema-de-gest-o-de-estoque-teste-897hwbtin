@@ -40,9 +40,14 @@ migrate(
       )
       .execute()
 
-    // Adiciona o índice único corretamente usando a API
+    // Adiciona o índice único corretamente manipulando a string exata para evitar erros de parser do SQLite
     const ocUpdated = app.findCollectionByNameOrId('ordens_compra')
-    ocUpdated.addIndex('idx_oc_numero', true, 'numero_oc', '')
+    const idxExpr = 'CREATE UNIQUE INDEX `idx_oc_numero` ON `ordens_compra` (`numero_oc`)'
+    let currentIndexes = ocUpdated.indexes || []
+    if (!currentIndexes.includes(idxExpr)) {
+      currentIndexes.push(idxExpr)
+      ocUpdated.indexes = currentIndexes
+    }
     app.save(ocUpdated)
 
     let aprovacoes
@@ -82,7 +87,9 @@ migrate(
     } catch (_) {}
 
     const oc = app.findCollectionByNameOrId('ordens_compra')
-    oc.removeIndex('idx_oc_numero')
+    if (oc.indexes) {
+      oc.indexes = oc.indexes.filter((idx) => !idx.includes('idx_oc_numero'))
+    }
     if (oc.fields.getByName('numero_oc')) oc.fields.removeByName('numero_oc')
     if (oc.fields.getByName('tipo_entrega')) oc.fields.removeByName('tipo_entrega')
     if (oc.fields.getByName('descricao_produtos')) oc.fields.removeByName('descricao_produtos')

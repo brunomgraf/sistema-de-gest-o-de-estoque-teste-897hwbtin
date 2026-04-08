@@ -244,8 +244,14 @@ export default function Reports() {
       {/* Printable Area - Only visible when printing */}
       <div
         id="printable-area"
-        className="hidden print:block bg-white text-black p-8 text-sm max-w-4xl mx-auto"
+        className="hidden print:block bg-white text-black p-8 print:p-0 text-sm max-w-4xl mx-auto print:max-w-none print:w-full"
       >
+        <style media="print">
+          {`
+            @page { size: A4 portrait; margin: 15mm; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          `}
+        </style>
         <div className="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-8">
           <div>
             <h1 className="text-3xl font-bold uppercase tracking-wider text-slate-900">
@@ -279,8 +285,8 @@ export default function Reports() {
           <thead>
             <tr className="border-y-2 border-slate-800 bg-slate-50 text-slate-900">
               <th className="py-3 px-2 font-bold">Item</th>
-              <th className="py-3 px-2 font-bold">SKU</th>
-              <th className="py-3 px-2 font-bold text-right">Qtd</th>
+              <th className="py-3 px-2 font-bold">Solicitante</th>
+              <th className="py-3 px-2 font-bold text-right">Quantidade</th>
               <th className="py-3 px-2 font-bold text-right">Valor Unit.</th>
               <th className="py-3 px-2 font-bold text-right">Subtotal</th>
             </tr>
@@ -297,12 +303,12 @@ export default function Reports() {
                   <td className="py-3 px-2">
                     <span className="font-medium">{m.expand?.item_id?.nome || '-'}</span>
                     {!isSaida && (
-                      <span className="ml-2 text-xs bg-slate-200 px-1 py-0.5 rounded">
+                      <span className="ml-2 text-xs bg-slate-200 px-1 py-0.5 rounded text-slate-800">
                         Devolução
                       </span>
                     )}
                   </td>
-                  <td className="py-3 px-2 text-slate-600">{m.expand?.item_id?.sku || '-'}</td>
+                  <td className="py-3 px-2 text-slate-600">{m.solicitante || '-'}</td>
                   <td className="py-3 px-2 text-right font-medium">{qty}</td>
                   <td className="py-3 px-2 text-right text-slate-600">
                     {formatCurrency(unitPrice)}
@@ -321,8 +327,11 @@ export default function Reports() {
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-slate-800 bg-slate-50">
-              <td colSpan={4} className="py-4 px-2 text-right font-bold text-lg text-slate-900">
-                Total Consumo:
+              <td
+                colSpan={4}
+                className="py-4 px-2 text-right font-bold text-lg text-slate-900 uppercase tracking-tight"
+              >
+                Valor Total da OS:
               </td>
               <td className="py-4 px-2 text-right font-bold text-lg text-slate-900">
                 {formatCurrency(reportTotal)}

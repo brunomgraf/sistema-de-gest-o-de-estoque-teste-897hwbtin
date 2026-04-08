@@ -88,4 +88,9 @@ export interface PurchaseOrder {
   status: 'pendente' | 'recebido'
   paymentMethod?: string
   freightType?: string
+  numero_oc?: string
+  tipo_entrega?: string
+  descricao_produtos?: string
+  condicoes_pagamento?: string
+  cotacao_id?: string
 }

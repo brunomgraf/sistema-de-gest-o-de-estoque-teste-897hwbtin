@@ -9,7 +9,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,6 +24,7 @@ import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { format } from 'date-fns'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
 
 export default function PurchaseOrders() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -27,16 +34,21 @@ export default function PurchaseOrders() {
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([])
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [items, setItems] = useState<any[]>([])
+  const [aprovacoes, setAprovacoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  const [approvalFormOpen, setApprovalFormOpen] = useState(false)
+  const [approvalData, setApprovalData] = useState({ aprovador: '', observacoes: '' })
 
   const loadData = async () => {
     try {
-      const [poRes, supRes, itRes] = await Promise.all([
+      const [poRes, supRes, itRes, aprovRes] = await Promise.all([
         pb
           .collection('ordens_compra')
           .getFullList({ sort: '-data_pedido', expand: 'fornecedor_id' }),
         pb.collection('fornecedores').getFullList(),
         pb.collection('itens').getFullList(),
+        pb.collection('aprovacoes_financeiras').getFullList({ sort: '-data_aprovacao' }),
       ])
 
       const pos = await Promise.all(
@@ -46,7 +58,7 @@ export default function PurchaseOrders() {
             .getFullList({ filter: `ordem_compra_id = "${po.id}"` })
           return {
             id: po.id,
-            number: 'OC-' + po.id.slice(0, 6).toUpperCase(),
+            number: po.numero_oc || 'OC-' + po.id.slice(0, 6).toUpperCase(),
             supplierId: po.fornecedor_id,
             supplierName: po.expand?.fornecedor_id?.nome,
             items: poItems.map((i) => ({
@@ -57,6 +69,10 @@ export default function PurchaseOrders() {
             totalValue: po.valor_total,
             expectedDeliveryDate: po.data_entrega_prevista,
             status: po.status,
+            tipo_entrega: po.tipo_entrega,
+            descricao_produtos: po.descricao_produtos,
+            condicoes_pagamento: po.condicoes_pagamento,
+            cotacao_id: po.cotacao_id,
           }
         }),
       )
@@ -64,6 +80,7 @@ export default function PurchaseOrders() {
       setPurchaseOrders(pos)
       setSuppliers(supRes)
       setItems(itRes)
+      setAprovacoes(aprovRes)
     } catch (e) {
       console.error(e)
     } finally {
@@ -74,9 +91,9 @@ export default function PurchaseOrders() {
   useEffect(() => {
     loadData()
   }, [])
-  useRealtime('ordens_compra', () => {
-    loadData()
-  })
+
+  useRealtime('ordens_compra', loadData)
+  useRealtime('aprovacoes_financeiras', loadData)
 
   useEffect(() => {
     const poId = searchParams.get('poId')
@@ -90,7 +107,7 @@ export default function PurchaseOrders() {
     return purchaseOrders.filter((po) => {
       if (!searchTerm) return true
       const matchesTicket = po.items.some((item) =>
-        item.purchaseTicketId.toLowerCase().includes(searchTerm.toLowerCase()),
+        item.itemId?.toLowerCase().includes(searchTerm.toLowerCase()),
       )
       const matchesPo = po.number.toLowerCase().includes(searchTerm.toLowerCase())
       return matchesTicket || matchesPo
@@ -105,12 +122,29 @@ export default function PurchaseOrders() {
     return selectedPo ? suppliers.find((s) => s.id === selectedPo.supplierId) : null
   }, [selectedPo, suppliers])
 
-  const handleUpdateDetails = async (field: 'paymentMethod' | 'freightType', value: string) => {
-    // Custom fields not in schema, ignoring for DB update
-  }
-
   const handlePrint = () => {
     window.print()
+  }
+
+  const handleSaveApproval = async () => {
+    if (!selectedPoId || !approvalData.aprovador) {
+      toast.error('Preencha o nome do aprovador.')
+      return
+    }
+    try {
+      await pb.collection('aprovacoes_financeiras').create({
+        ordem_compra_id: selectedPoId,
+        aprovador: approvalData.aprovador,
+        data_aprovacao: new Date().toISOString(),
+        observacoes: approvalData.observacoes,
+      })
+      toast.success('Aprovação registrada com sucesso!')
+      setApprovalFormOpen(false)
+      setApprovalData({ aprovador: '', observacoes: '' })
+    } catch (e) {
+      console.error(e)
+      toast.error('Erro ao registrar aprovação.')
+    }
   }
 
   return (
@@ -126,7 +160,7 @@ export default function PurchaseOrders() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Filtrar por Ticket de Solicitação ou Nº da OC..."
+            placeholder="Filtrar por Nº da OC..."
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -237,34 +271,36 @@ export default function PurchaseOrders() {
                     Detalhes da Entrega
                   </h4>
                   <p className="font-medium text-lg">
-                    {format(new Date(selectedPo.expectedDeliveryDate), 'dd/MM/yyyy')}
+                    {selectedPo.expectedDeliveryDate
+                      ? format(new Date(selectedPo.expectedDeliveryDate), 'dd/MM/yyyy')
+                      : '-'}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    às {format(new Date(selectedPo.expectedDeliveryDate), 'HH:mm')}
-                  </p>
+                  {selectedPo.expectedDeliveryDate && (
+                    <p className="text-sm text-muted-foreground">
+                      às {format(new Date(selectedPo.expectedDeliveryDate), 'HH:mm')}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="paymentMethod">Forma de pagamento acordado</Label>
-                  <Input
-                    id="paymentMethod"
-                    value={selectedPo.paymentMethod || ''}
-                    onChange={(e) => handleUpdateDetails('paymentMethod', e.target.value)}
-                    placeholder="Ex: Boleto 30/60/90, PIX, etc."
-                    disabled={selectedPo.status === 'recebido'}
-                  />
+              <div className="grid grid-cols-2 gap-6 p-4 border rounded-md bg-muted/5">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-muted-foreground uppercase">
+                    Condições de Pagamento
+                  </p>
+                  <p className="font-medium">{selectedPo.condicoes_pagamento || '-'}</p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="freightType">Tipo do frete</Label>
-                  <Input
-                    id="freightType"
-                    value={selectedPo.freightType || ''}
-                    onChange={(e) => handleUpdateDetails('freightType', e.target.value)}
-                    placeholder="Ex: CIF, FOB"
-                    disabled={selectedPo.status === 'recebido'}
-                  />
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-muted-foreground uppercase">
+                    Tipo de Entrega
+                  </p>
+                  <p className="font-medium">{selectedPo.tipo_entrega || '-'}</p>
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <p className="text-sm font-semibold text-muted-foreground uppercase">
+                    Descrição dos Produtos
+                  </p>
+                  <p className="font-medium">{selectedPo.descricao_produtos || '-'}</p>
                 </div>
               </div>
 
@@ -274,7 +310,6 @@ export default function PurchaseOrders() {
                     <TableRow>
                       <TableHead>Código</TableHead>
                       <TableHead>Item</TableHead>
-                      <TableHead>Ticket Ref.</TableHead>
                       <TableHead className="text-right">Qtd</TableHead>
                       <TableHead className="text-right">Valor Unit.</TableHead>
                       <TableHead className="text-right">Total</TableHead>
@@ -287,13 +322,10 @@ export default function PurchaseOrders() {
                       return (
                         <TableRow key={idx}>
                           <TableCell className="font-mono text-xs">
-                            {itemDetails?.code || 'N/A'}
+                            {itemDetails?.sku || itemDetails?.code || 'N/A'}
                           </TableCell>
                           <TableCell className="font-medium">
                             {itemDetails?.nome || 'Item desconhecido'}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground font-mono">
-                            -
                           </TableCell>
                           <TableCell className="text-right">{poItem.quantity}</TableCell>
                           <TableCell className="text-right">R$ {poItem.price.toFixed(2)}</TableCell>
@@ -317,8 +349,82 @@ export default function PurchaseOrders() {
                   </p>
                 </div>
               </div>
+
+              <div className="mt-8 border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-lg">Aprovações Financeiras</h4>
+                  <Button
+                    size="sm"
+                    onClick={() => setApprovalFormOpen(true)}
+                    disabled={selectedPo.status === 'recebido'}
+                  >
+                    Registrar Aprovação
+                  </Button>
+                </div>
+
+                {aprovacoes.filter((a) => a.ordem_compra_id === selectedPo.id).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhuma aprovação registrada.</p>
+                ) : (
+                  <div className="border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Aprovador</TableHead>
+                          <TableHead>Observações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {aprovacoes
+                          .filter((a) => a.ordem_compra_id === selectedPo.id)
+                          .map((a) => (
+                            <TableRow key={a.id}>
+                              <TableCell>
+                                {format(new Date(a.data_aprovacao), 'dd/MM/yyyy HH:mm')}
+                              </TableCell>
+                              <TableCell className="font-medium">{a.aprovador}</TableCell>
+                              <TableCell>{a.observacoes || '-'}</TableCell>
+                            </TableRow>
+                          ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={approvalFormOpen} onOpenChange={setApprovalFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar Aprovação Financeira</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Aprovador *</Label>
+              <Input
+                value={approvalData.aprovador}
+                onChange={(e) => setApprovalData({ ...approvalData, aprovador: e.target.value })}
+                placeholder="Nome do responsável pela aprovação"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Input
+                value={approvalData.observacoes}
+                onChange={(e) => setApprovalData({ ...approvalData, observacoes: e.target.value })}
+                placeholder="Ex: Aprovado conforme orçamento recebido"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApprovalFormOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveApproval}>Salvar Aprovação</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -377,15 +483,17 @@ export default function PurchaseOrders() {
               <div className="space-y-1">
                 <p>
                   <span className="font-semibold">Pagamento:</span>{' '}
-                  {selectedPo.paymentMethod || 'Não informada'}
+                  {selectedPo.condicoes_pagamento || 'Não informada'}
                 </p>
                 <p>
-                  <span className="font-semibold">Frete (Shipping):</span>{' '}
-                  {selectedPo.freightType || 'Não informado'}
+                  <span className="font-semibold">Frete/Entrega:</span>{' '}
+                  {selectedPo.tipo_entrega || 'Não informado'}
                 </p>
                 <p>
                   <span className="font-semibold">Data de Entrega:</span>{' '}
-                  {format(new Date(selectedPo.expectedDeliveryDate), 'dd/MM/yyyy')}
+                  {selectedPo.expectedDeliveryDate
+                    ? format(new Date(selectedPo.expectedDeliveryDate), 'dd/MM/yyyy')
+                    : '-'}
                 </p>
               </div>
             </div>
@@ -410,11 +518,10 @@ export default function PurchaseOrders() {
                   return (
                     <tr key={idx}>
                       <td className="p-2 border border-black font-mono text-xs">
-                        {itemDetails?.code || 'N/A'}
+                        {itemDetails?.sku || itemDetails?.code || 'N/A'}
                       </td>
                       <td className="p-2 border border-black">
                         {itemDetails?.nome || 'Item desconhecido'}
-                        <div className="text-xs text-gray-500 mt-0.5">Ref: -</div>
                       </td>
                       <td className="p-2 text-right border border-black">{poItem.quantity}</td>
                       <td className="p-2 text-right border border-black">
@@ -431,7 +538,7 @@ export default function PurchaseOrders() {
           </div>
 
           {/* Footer Totals */}
-          <div className="flex justify-end shrink-0 mb-12">
+          <div className="flex justify-end shrink-0 mb-6">
             <div className="border-2 border-black p-4 min-w-[300px] text-right">
               <p className="text-sm uppercase font-bold text-gray-700 mb-1">
                 Total da Ordem de Compra
@@ -440,8 +547,39 @@ export default function PurchaseOrders() {
             </div>
           </div>
 
+          {/* Aprovações */}
+          {aprovacoes.filter((a) => a.ordem_compra_id === selectedPo.id).length > 0 && (
+            <div className="mb-6 border border-black p-4 rounded-sm text-sm">
+              <h3 className="font-bold uppercase border-b border-black pb-2 mb-2">
+                Aprovações Financeiras Registradas
+              </h3>
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="text-left font-semibold pb-1 w-1/4">Aprovador</th>
+                    <th className="text-left font-semibold pb-1 w-1/4">Data</th>
+                    <th className="text-left font-semibold pb-1 w-1/2">Observações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aprovacoes
+                    .filter((a) => a.ordem_compra_id === selectedPo.id)
+                    .map((a) => (
+                      <tr key={a.id}>
+                        <td className="py-1">{a.aprovador}</td>
+                        <td className="py-1">
+                          {format(new Date(a.data_aprovacao), 'dd/MM/yyyy HH:mm')}
+                        </td>
+                        <td className="py-1">{a.observacoes || '-'}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Signatures */}
-          <div className="mt-auto pt-12 grid grid-cols-2 gap-12">
+          <div className="mt-auto pt-8 grid grid-cols-2 gap-12">
             <div className="text-center">
               <div className="border-b border-black mb-2 mx-4"></div>
               <p className="font-bold text-sm">Assinatura do Comprador</p>

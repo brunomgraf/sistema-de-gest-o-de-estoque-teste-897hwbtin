@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-08T02:28:08.303Z",
+  "generatedAt": "2026-04-08T02:33:13.590Z",
   "collections": [
     {
       "name": "users",
@@ -29,21 +29,30 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "role",
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["admin", "gestor", "operador"]
+          "selectValues": [
+            "admin",
+            "gestor",
+            "operador"
+          ]
         }
       ],
       "indexes": [
@@ -103,14 +112,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "fornecedor_id",
@@ -120,7 +134,9 @@
           "collectionRef": "fornecedores"
         }
       ],
-      "indexes": ["CREATE UNIQUE INDEX idx_itens_sku ON itens (sku)"]
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_itens_sku ON itens (sku)"
+      ]
     },
     {
       "name": "fornecedores",
@@ -162,17 +178,24 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
-      "indexes": ["CREATE INDEX idx_fornecedores_nome ON fornecedores (nome)"]
+      "indexes": [
+        "CREATE INDEX idx_fornecedores_nome ON fornecedores (nome)"
+      ]
     },
     {
       "name": "ordens_compra",
@@ -209,7 +232,11 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["pendente", "entregue", "cancelado"]
+          "selectValues": [
+            "pendente",
+            "entregue",
+            "cancelado"
+          ]
         },
         {
           "name": "valor_total",
@@ -222,14 +249,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
       "indexes": [
@@ -279,14 +311,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
       "indexes": [
@@ -335,17 +372,24 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
-      "indexes": ["CREATE INDEX idx_recebimento_oc ON recebimento (ordem_compra_id)"]
+      "indexes": [
+        "CREATE INDEX idx_recebimento_oc ON recebimento (ordem_compra_id)"
+      ]
     },
     {
       "name": "movimentacoes",
@@ -370,7 +414,10 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["entrada", "saida"]
+          "selectValues": [
+            "entrada",
+            "saida"
+          ]
         },
         {
           "name": "quantidade",
@@ -402,14 +449,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "solicitante",

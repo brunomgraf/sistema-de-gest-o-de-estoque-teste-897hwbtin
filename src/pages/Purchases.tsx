@@ -54,6 +54,7 @@ import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/use-auth'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 interface DraftQuote {
   id: string
@@ -82,6 +83,7 @@ export default function Purchases() {
   // Approval Form State
   const [approvalModalOpen, setApprovalModalOpen] = useState(false)
   const [quoteToApprove, setQuoteToApprove] = useState<string | null>(null)
+  const [isApproving, setIsApproving] = useState(false)
   const [approvalData, setApprovalData] = useState({
     aprovador: '',
     data_aprovacao: undefined as Date | undefined,
@@ -305,6 +307,7 @@ export default function Purchases() {
       return
     }
 
+    setIsApproving(true)
     try {
       const dateStr = format(approvalData.data_aprovacao, 'yyyy-MM-dd') + ' 12:00:00.000Z'
 
@@ -328,7 +331,9 @@ export default function Purchases() {
       setQuoteToApprove(null)
     } catch (e: any) {
       console.error(e)
-      toast.error('Erro ao registrar aprovação financeira.')
+      toast.error(`Erro ao registrar aprovação: ${getErrorMessage(e)}`)
+    } finally {
+      setIsApproving(false)
     }
   }
 
@@ -348,7 +353,7 @@ export default function Purchases() {
   const handleDownloadOC = async (ticketId: string, ordemCompra: any) => {
     setIsDownloading(ticketId)
     try {
-      const res = await fetch(`${pb.baseUrl}/backend/v1/gerar-oc-pdf`, {
+      const res = await fetch(`${pb.baseUrl}/backend/v1/gerar_oc_pdf`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1049,7 +1054,7 @@ export default function Purchases() {
                                 ) : (
                                   <Download className="w-4 h-4 mr-2" />
                                 )}
-                                Baixar OC (PDF)
+                                Baixar Ordem de Compra (PDF)
                               </Button>
                             )}
 
@@ -1149,10 +1154,17 @@ export default function Purchases() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApprovalModalOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setApprovalModalOpen(false)}
+              disabled={isApproving}
+            >
               Cancelar
             </Button>
-            <Button onClick={handleApproveQuote}>Confirmar Aprovação</Button>
+            <Button onClick={handleApproveQuote} disabled={isApproving}>
+              {isApproving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Confirmar Aprovação
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

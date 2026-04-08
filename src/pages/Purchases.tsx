@@ -42,9 +42,12 @@ import {
   Printer,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import useMainStore from '@/stores/main'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
+import { toast } from 'sonner'
+import { useAuth } from '@/hooks/use-auth'
 
 interface DraftQuote {
   id: string
@@ -56,151 +59,183 @@ interface DraftQuote {
 }
 
 export default function Purchases() {
-  const {
-    purchaseTickets,
-    items,
-    suppliers,
-    addQuoteToTicket,
-    setWinningQuote,
-    updatePurchaseTicketQuantity,
-    purchaseOrders,
-    updatePurchaseOrderDetails,
-  } = useMainStore()
+  const { user } = useAuth()
+  const canFinalize = user?.role === 'admin' || user?.role === 'gestor'
 
-  const navigate = useNavigate()
+  const [tickets, setTickets] = useState<any[]>([])
+  const [quotes, setQuotes] = useState<any[]>([])
+  const [suppliers, setSuppliers] = useState<any[]>([])
+
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null)
-
   const [draftQuotes, setDraftQuotes] = useState<DraftQuote[]>([])
   const [ticketQuantity, setTicketQuantity] = useState('')
-
-  const [pendingPoUpdate, setPendingPoUpdate] = useState<{
-    ticketId: string
-    paymentMethod: string
-    freightType: string
-  } | null>(null)
 
   const [selectedRequests, setSelectedRequests] = useState<string[]>([])
   const [isReportOpen, setIsReportOpen] = useState(false)
 
-  useEffect(() => {
-    if (pendingPoUpdate) {
-      const po = purchaseOrders.find((p) =>
-        p.items.some((i) => i.purchaseTicketId === pendingPoUpdate.ticketId),
-      )
-      if (po) {
-        if (pendingPoUpdate.paymentMethod || pendingPoUpdate.freightType) {
-          updatePurchaseOrderDetails(po.id, {
-            paymentMethod: pendingPoUpdate.paymentMethod,
-            freightType: pendingPoUpdate.freightType,
-          })
-        }
-        setPendingPoUpdate(null)
-        setSelectedTicketId(null)
-        navigate(`/ordens-de-compra?poId=${po.id}`)
-      }
-    }
-  }, [purchaseOrders, pendingPoUpdate, updatePurchaseOrderDetails, navigate])
-
-  useEffect(() => {
-    if (selectedTicketId) {
-      const ticket = purchaseTickets.find((t) => t.id === selectedTicketId)
-      if (ticket) setTicketQuantity(ticket.quantity.toString())
-    }
-  }, [selectedTicketId, purchaseTickets])
-
-  const handleQuantityChange = (val: string) => {
-    setTicketQuantity(val)
-    const qty = parseInt(val, 10)
-    if (!isNaN(qty) && qty > 0 && selectedTicketId) {
-      updatePurchaseTicketQuantity(selectedTicketId, qty)
+  const loadData = async () => {
+    try {
+      const [ticketsRes, quotesRes, suppliersRes] = await Promise.all([
+        pb
+          .collection('solicitacoes_compra')
+          .getFullList({ expand: 'item_id.fornecedor_id', sort: '-created' }),
+        pb.collection('cotacoes').getFullList({ expand: 'fornecedor_id' }),
+        pb.collection('fornecedores').getFullList({ sort: 'nome' }),
+      ])
+      setTickets(ticketsRes)
+      setQuotes(quotesRes)
+      setSuppliers(suppliersRes)
+    } catch (e) {
+      console.error(e)
     }
   }
 
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  useRealtime('solicitacoes_compra', loadData)
+  useRealtime('cotacoes', loadData)
+  useRealtime('fornecedores', loadData)
+
+  useEffect(() => {
+    if (selectedTicketId) {
+      const ticket = tickets.find((t) => t.id === selectedTicketId)
+      if (ticket) setTicketQuantity(ticket.quantidade_sugerida.toString())
+    }
+  }, [selectedTicketId, tickets])
+
   const enrichedTickets = useMemo(() => {
-    return purchaseTickets.map((ticket) => {
-      const item = items.find((i) => i.id === ticket.itemId)!
-      const primarySupplierRef = item?.suppliers?.find((s) => s.preference === 'primary')
-      const supplier = primarySupplierRef
-        ? suppliers.find((s) => s.id === primarySupplierRef.supplierId)
-        : null
+    return tickets.map((ticket) => {
+      const item = ticket.expand?.item_id
+      const defaultSupplier = item?.expand?.fornecedor_id
+      const ticketQuotes = quotes.filter((q) => q.solicitacao_id === ticket.id)
 
       return {
-        ...ticket,
-        itemName: item?.name || 'Item desconhecido',
-        itemCode: item?.code || '-',
-        currentQuantity: item?.currentQuantity || 0,
-        minQuantity: item?.minQuantity || 0,
-        recommendedQuantity: ticket.quantity,
-        supplierName: supplier ? supplier.name : 'Não definido',
+        id: ticket.id,
+        itemId: item?.id,
+        itemName: item?.nome || 'Item desconhecido',
+        itemCode: item?.sku || '-',
+        currentQuantity: item?.quantidade_atual || 0,
+        minQuantity: item?.quantidade_minima || 0,
+        recommendedQuantity: ticket.quantidade_sugerida,
+        supplierId: defaultSupplier?.id,
+        supplierName: defaultSupplier?.nome || 'Não definido',
+        status: ticket.status,
+        requestDate: ticket.created,
+        quotes: ticketQuotes.map((q) => ({
+          id: q.id,
+          supplierId: q.fornecedor_id,
+          supplierName: q.expand?.fornecedor_id?.nome || 'Desconhecido',
+          price: q.valor_ofertado,
+          expectedDeliveryDate: q.prazo_entrega,
+          paymentMethod: q.condicao_pagamento,
+          shippingMethod: q.frete,
+          isWinner: q.is_winner,
+        })),
       }
     })
-  }, [purchaseTickets, items, suppliers])
+  }, [tickets, quotes])
 
   const selectedTicket = useMemo(() => {
-    return purchaseTickets.find((t) => t.id === selectedTicketId) || null
-  }, [purchaseTickets, selectedTicketId])
+    return enrichedTickets.find((t) => t.id === selectedTicketId) || null
+  }, [enrichedTickets, selectedTicketId])
 
-  const selectedItem = useMemo(() => {
-    return selectedTicket ? items.find((i) => i.id === selectedTicket.itemId) : null
-  }, [selectedTicket, items])
+  const updateTicketQuantity = async () => {
+    const qty = parseInt(ticketQuantity, 10)
+    if (!isNaN(qty) && qty > 0 && selectedTicketId) {
+      try {
+        await pb.collection('solicitacoes_compra').update(selectedTicketId, {
+          quantidade_sugerida: qty,
+        })
+        toast.success('Quantidade atualizada')
+      } catch (e) {
+        toast.error('Erro ao atualizar quantidade.')
+      }
+    }
+  }
 
   const handleOpenDetails = (ticketId: string) => {
     setSelectedTicketId(ticketId)
-    const ticket = purchaseTickets.find((t) => t.id === ticketId)
-    const item = items.find((i) => i.id === ticket?.itemId)
-    if (item && item.suppliers) {
-      setDraftQuotes(
-        item.suppliers.map((s) => ({
+    const ticket = enrichedTickets.find((t) => t.id === ticketId)
+
+    if (ticket && ticket.quotes.length === 0 && ticket.supplierId) {
+      setDraftQuotes([
+        {
           id: Math.random().toString(36).substring(2, 9),
-          supplierId: s.supplierId,
+          supplierId: ticket.supplierId,
           price: '',
           deliveryDate: undefined,
           paymentMethod: '',
           shippingMethod: '',
-        })),
-      )
+        },
+      ])
     } else {
       setDraftQuotes([])
     }
   }
 
-  const handleAddQuote = () => {
+  const handleAddQuote = async () => {
     if (!selectedTicketId) return
 
-    draftQuotes.forEach((draft) => {
-      if (draft.supplierId && draft.price && draft.deliveryDate) {
-        const deliveryDate = new Date(draft.deliveryDate)
-        deliveryDate.setHours(12, 0)
+    try {
+      for (const draft of draftQuotes) {
+        if (draft.supplierId && draft.price && draft.deliveryDate) {
+          const deliveryDateStr = format(draft.deliveryDate, 'yyyy-MM-dd')
+          await pb.collection('cotacoes').create({
+            solicitacao_id: selectedTicketId,
+            fornecedor_id: draft.supplierId,
+            valor_ofertado: parseFloat(draft.price) || 0,
+            prazo_entrega: deliveryDateStr,
+            condicao_pagamento: draft.paymentMethod,
+            frete: draft.shippingMethod,
+            is_winner: false,
+          })
+        }
+      }
 
-        addQuoteToTicket(selectedTicketId, {
-          supplierId: draft.supplierId,
-          price: parseFloat(draft.price) || 0,
-          expectedDeliveryDate: deliveryDate.toISOString(),
-          paymentMethod: draft.paymentMethod,
-          shippingMethod: draft.shippingMethod,
+      const ticket = tickets.find((t) => t.id === selectedTicketId)
+      if (ticket && ticket.status === 'pendente') {
+        await pb.collection('solicitacoes_compra').update(selectedTicketId, {
+          status: 'em_cotacao',
         })
       }
-    })
 
-    setDraftQuotes([])
+      setDraftQuotes([])
+      toast.success('Cotação adicionada com sucesso.')
+    } catch (e) {
+      console.error(e)
+      toast.error('Erro ao adicionar cotação.')
+    }
   }
 
-  const handleSetWinner = (quoteId: string) => {
+  const handleSetWinner = async (quoteId: string) => {
     if (!selectedTicketId) return
-    const ticket = purchaseTickets.find((t) => t.id === selectedTicketId)
-    const quote = ticket?.quotes.find((q) => q.id === quoteId)
+    try {
+      const ticketQuotes = quotes.filter((q) => q.solicitacao_id === selectedTicketId)
+      await Promise.all(
+        ticketQuotes.map((q) =>
+          pb.collection('cotacoes').update(q.id, { is_winner: q.id === quoteId }),
+        ),
+      )
 
-    setWinningQuote(selectedTicketId, quoteId)
-    setPendingPoUpdate({
-      ticketId: selectedTicketId,
-      paymentMethod: quote?.paymentMethod || '',
-      freightType: quote?.shippingMethod || '',
-    })
+      await pb.collection('solicitacoes_compra').update(selectedTicketId, {
+        status: 'finalizado',
+      })
+
+      toast.success('Cotação aprovada!')
+      setSelectedTicketId(null)
+    } catch (e) {
+      console.error(e)
+      toast.error('Erro ao aprovar cotação.')
+    }
   }
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const eligible = enrichedTickets.filter((t) => t.status !== 'concluido').map((t) => t.id)
+      const eligible = enrichedTickets
+        .filter((t) => t.status !== 'finalizado' && t.status !== 'cancelado')
+        .map((t) => t.id)
       setSelectedRequests(eligible)
     } else {
       setSelectedRequests([])
@@ -217,22 +252,13 @@ export default function Purchases() {
     return enrichedTickets
       .filter((t) => selectedRequests.includes(t.id))
       .map((ticket) => {
-        const detailedQuotes = ticket.quotes
-          .map((q) => {
-            const sup = suppliers.find((s) => s.id === q.supplierId)
-            return {
-              ...q,
-              supplierName: sup?.name || 'Desconhecido',
-            }
-          })
-          .filter((q) => !q.isWinner)
-
+        const detailedQuotes = ticket.quotes.filter((q) => !q.isWinner)
         return {
           ...ticket,
           quotes: detailedQuotes,
         }
       })
-  }, [enrichedTickets, selectedRequests, suppliers])
+  }, [enrichedTickets, selectedRequests])
 
   const handleDownloadCSV = () => {
     let csvContent = 'data:text/csv;charset=utf-8,'
@@ -242,12 +268,14 @@ export default function Purchases() {
     selectedReportData.forEach((ticket) => {
       const itemName = `"${ticket.itemName.replace(/"/g, '""')}"`
       if (ticket.quotes.length === 0) {
-        csvContent += `${itemName},${ticket.itemCode},${ticket.quantity},Nenhuma cotacao,-,-,-,-,-\n`
+        csvContent += `${itemName},${ticket.itemCode},${ticket.recommendedQuantity},Nenhuma cotacao,-,-,-,-,-\n`
       } else {
         ticket.quotes.forEach((q) => {
           const supName = `"${q.supplierName.replace(/"/g, '""')}"`
-          const date = format(new Date(q.expectedDeliveryDate), 'dd/MM/yyyy')
-          csvContent += `${itemName},${ticket.itemCode},${ticket.quantity},${supName},${q.price.toFixed(2)},${(q.price * ticket.quantity).toFixed(2)},"${q.paymentMethod || '-'}","${q.shippingMethod || '-'}","${date}"\n`
+          const dateStr = q.expectedDeliveryDate
+            ? format(new Date(q.expectedDeliveryDate + 'T12:00:00'), 'dd/MM/yyyy')
+            : '-'
+          csvContent += `${itemName},${ticket.itemCode},${ticket.recommendedQuantity},${supName},${q.price.toFixed(2)},${(q.price * ticket.recommendedQuantity).toFixed(2)},"${q.paymentMethod || '-'}","${q.shippingMethod || '-'}","${dateStr}"\n`
         })
       }
     })
@@ -293,7 +321,7 @@ export default function Purchases() {
             <div class="mb-4" style="page-break-inside: avoid;">
               <div class="item-header">
                 <h3>${ticket.itemName} (Código: ${ticket.itemCode})</h3>
-                <p>Quantidade Solicitada: <strong>${ticket.quantity}</strong></p>
+                <p>Quantidade Solicitada: <strong>${ticket.recommendedQuantity}</strong></p>
               </div>
               <table>
                 <thead>
@@ -316,10 +344,10 @@ export default function Purchases() {
                     <tr>
                       <td>${q.supplierName}</td>
                       <td class="text-right">R$ ${q.price.toFixed(2)}</td>
-                      <td class="text-right"><strong>R$ ${(q.price * ticket.quantity).toFixed(2)}</strong></td>
+                      <td class="text-right"><strong>R$ ${(q.price * ticket.recommendedQuantity).toFixed(2)}</strong></td>
                       <td>${q.paymentMethod || '-'}</td>
                       <td>${q.shippingMethod || '-'}</td>
-                      <td class="text-right">${format(new Date(q.expectedDeliveryDate), 'dd/MM/yyyy')}</td>
+                      <td class="text-right">${q.expectedDeliveryDate ? format(new Date(q.expectedDeliveryDate + 'T12:00:00'), 'dd/MM/yyyy') : '-'}</td>
                     </tr>
                   `,
                           )
@@ -342,7 +370,9 @@ export default function Purchases() {
     }, 250)
   }
 
-  const eligibleForReportCount = enrichedTickets.filter((t) => t.status !== 'concluido').length
+  const eligibleForReportCount = enrichedTickets.filter(
+    (t) => t.status !== 'finalizado' && t.status !== 'cancelado',
+  ).length
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -396,18 +426,32 @@ export default function Purchases() {
               </TableRow>
             ) : (
               enrichedTickets.map((ticket) => (
-                <TableRow key={ticket.id}>
+                <TableRow
+                  key={ticket.id}
+                  className={
+                    ticket.currentQuantity <= ticket.minQuantity &&
+                    ticket.status !== 'finalizado' &&
+                    ticket.status !== 'cancelado'
+                      ? 'bg-red-50/50'
+                      : ''
+                  }
+                >
                   <TableCell>
                     <Checkbox
                       checked={selectedRequests.includes(ticket.id)}
                       onCheckedChange={() => toggleSelection(ticket.id)}
-                      disabled={ticket.status === 'concluido'}
+                      disabled={ticket.status === 'finalizado' || ticket.status === 'cancelado'}
                       aria-label={`Selecionar ${ticket.itemName}`}
                     />
                   </TableCell>
                   <TableCell className="font-medium">{ticket.itemName}</TableCell>
                   <TableCell>{ticket.supplierName}</TableCell>
-                  <TableCell className="text-right text-destructive font-medium">
+                  <TableCell
+                    className={cn(
+                      'text-right font-medium',
+                      ticket.currentQuantity <= ticket.minQuantity ? 'text-destructive' : '',
+                    )}
+                  >
                     {ticket.currentQuantity}
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">
@@ -422,14 +466,15 @@ export default function Purchases() {
                       variant={
                         ticket.status === 'pendente'
                           ? 'destructive'
-                          : ticket.status === 'concluido'
+                          : ticket.status === 'finalizado'
                             ? 'default'
                             : 'secondary'
                       }
                     >
                       {ticket.status === 'pendente' && 'Pendente'}
                       {ticket.status === 'em_cotacao' && 'Em Cotação'}
-                      {ticket.status === 'concluido' && 'Concluído'}
+                      {ticket.status === 'finalizado' && 'Finalizado'}
+                      {ticket.status === 'cancelado' && 'Cancelado'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -451,7 +496,7 @@ export default function Purchases() {
             <DialogTitle>Detalhes da Solicitação</DialogTitle>
             <DialogDescription>
               Gerencie cotações de fornecedores para o item:{' '}
-              <strong className="text-foreground">{selectedItem?.name}</strong>
+              <strong className="text-foreground">{selectedTicket?.itemName}</strong>
             </DialogDescription>
           </DialogHeader>
 
@@ -460,178 +505,191 @@ export default function Purchases() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="ticket-quantity">Quantidade Solicitada</Label>
-                  <Input
-                    id="ticket-quantity"
-                    type="number"
-                    min="1"
-                    value={ticketQuantity}
-                    onChange={(e) => handleQuantityChange(e.target.value)}
-                    disabled={selectedTicket.status === 'concluido'}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="ticket-quantity"
+                      type="number"
+                      min="1"
+                      value={ticketQuantity}
+                      onChange={(e) => setTicketQuantity(e.target.value)}
+                      disabled={
+                        selectedTicket.status === 'finalizado' ||
+                        selectedTicket.status === 'cancelado'
+                      }
+                    />
+                    {selectedTicket.status !== 'finalizado' &&
+                      selectedTicket.status !== 'cancelado' && (
+                        <Button variant="secondary" onClick={updateTicketQuantity}>
+                          Atualizar
+                        </Button>
+                      )}
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {selectedTicket && selectedTicket.status !== 'concluido' && (
-            <div className="grid gap-4 py-4 border-b">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Nova(s) Cotação(ões)</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setDraftQuotes([
-                      ...draftQuotes,
-                      {
-                        id: Math.random().toString(36).substring(2, 9),
-                        supplierId: '',
-                        price: '',
-                        deliveryDate: undefined,
-                        paymentMethod: '',
-                        shippingMethod: '',
-                      },
-                    ])
-                  }
-                >
-                  <Plus className="w-4 h-4 mr-2" /> Adicionar Fornecedor
-                </Button>
-              </div>
-              <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
-                {draftQuotes.map((draft, index) => (
-                  <div
-                    key={draft.id}
-                    className="grid grid-cols-12 gap-3 items-end border p-3 rounded-md relative bg-muted/10"
+          {selectedTicket &&
+            selectedTicket.status !== 'finalizado' &&
+            selectedTicket.status !== 'cancelado' && (
+              <div className="grid gap-4 py-4 border-b">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Nova(s) Cotação(ões)</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setDraftQuotes([
+                        ...draftQuotes,
+                        {
+                          id: Math.random().toString(36).substring(2, 9),
+                          supplierId: '',
+                          price: '',
+                          deliveryDate: undefined,
+                          paymentMethod: '',
+                          shippingMethod: '',
+                        },
+                      ])
+                    }
                   >
-                    <div className="col-span-12 sm:col-span-3 space-y-2">
-                      <Label>Fornecedor</Label>
-                      <Select
-                        value={draft.supplierId}
-                        onValueChange={(val) => {
-                          const newDrafts = [...draftQuotes]
-                          newDrafts[index].supplierId = val
-                          setDraftQuotes(newDrafts)
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {suppliers.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="col-span-12 sm:col-span-2 space-y-2">
-                      <Label>Preço Unitário (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={draft.price}
-                        onChange={(e) => {
-                          const newDrafts = [...draftQuotes]
-                          newDrafts[index].price = e.target.value
-                          setDraftQuotes(newDrafts)
-                        }}
-                      />
-                    </div>
-                    <div className="col-span-12 sm:col-span-2 space-y-2">
-                      <Label>Pagamento</Label>
-                      <Input
-                        placeholder="Ex: 30 dias"
-                        value={draft.paymentMethod}
-                        onChange={(e) => {
-                          const newDrafts = [...draftQuotes]
-                          newDrafts[index].paymentMethod = e.target.value
-                          setDraftQuotes(newDrafts)
-                        }}
-                      />
-                    </div>
-                    <div className="col-span-12 sm:col-span-2 space-y-2">
-                      <Label>Frete</Label>
-                      <Input
-                        placeholder="Ex: CIF"
-                        value={draft.shippingMethod}
-                        onChange={(e) => {
-                          const newDrafts = [...draftQuotes]
-                          newDrafts[index].shippingMethod = e.target.value
-                          setDraftQuotes(newDrafts)
-                        }}
-                      />
-                    </div>
-                    <div className="col-span-12 sm:col-span-3 space-y-2">
-                      <Label>Entrega</Label>
-                      <div className="flex space-x-2">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant={'outline'}
-                              className={cn(
-                                'w-full justify-start text-left font-normal px-3',
-                                !draft.deliveryDate && 'text-muted-foreground',
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {draft.deliveryDate ? (
-                                format(draft.deliveryDate, 'dd/MM/yyyy')
-                              ) : (
-                                <span>Data</span>
-                              )}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <Calendar
-                              mode="single"
-                              selected={draft.deliveryDate}
-                              onSelect={(date) => {
-                                const newDrafts = [...draftQuotes]
-                                newDrafts[index].deliveryDate = date
-                                setDraftQuotes(newDrafts)
-                              }}
-                              initialFocus
-                              locale={ptBR}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0"
-                          onClick={() => {
+                    <Plus className="w-4 h-4 mr-2" /> Adicionar Fornecedor
+                  </Button>
+                </div>
+                <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
+                  {draftQuotes.map((draft, index) => (
+                    <div
+                      key={draft.id}
+                      className="grid grid-cols-12 gap-3 items-end border p-3 rounded-md relative bg-muted/10"
+                    >
+                      <div className="col-span-12 sm:col-span-3 space-y-2">
+                        <Label>Fornecedor</Label>
+                        <Select
+                          value={draft.supplierId}
+                          onValueChange={(val) => {
                             const newDrafts = [...draftQuotes]
-                            newDrafts.splice(index, 1)
+                            newDrafts[index].supplierId = val
                             setDraftQuotes(newDrafts)
                           }}
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {suppliers.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-12 sm:col-span-2 space-y-2">
+                        <Label>Preço Unitário (R$)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={draft.price}
+                          onChange={(e) => {
+                            const newDrafts = [...draftQuotes]
+                            newDrafts[index].price = e.target.value
+                            setDraftQuotes(newDrafts)
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-12 sm:col-span-2 space-y-2">
+                        <Label>Pagamento</Label>
+                        <Input
+                          placeholder="Ex: 30 dias"
+                          value={draft.paymentMethod}
+                          onChange={(e) => {
+                            const newDrafts = [...draftQuotes]
+                            newDrafts[index].paymentMethod = e.target.value
+                            setDraftQuotes(newDrafts)
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-12 sm:col-span-2 space-y-2">
+                        <Label>Frete</Label>
+                        <Input
+                          placeholder="Ex: CIF"
+                          value={draft.shippingMethod}
+                          onChange={(e) => {
+                            const newDrafts = [...draftQuotes]
+                            newDrafts[index].shippingMethod = e.target.value
+                            setDraftQuotes(newDrafts)
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-12 sm:col-span-3 space-y-2">
+                        <Label>Entrega</Label>
+                        <div className="flex space-x-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant={'outline'}
+                                className={cn(
+                                  'w-full justify-start text-left font-normal px-3',
+                                  !draft.deliveryDate && 'text-muted-foreground',
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {draft.deliveryDate ? (
+                                  format(draft.deliveryDate, 'dd/MM/yyyy')
+                                ) : (
+                                  <span>Data</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={draft.deliveryDate}
+                                onSelect={(date) => {
+                                  const newDrafts = [...draftQuotes]
+                                  newDrafts[index].deliveryDate = date
+                                  setDraftQuotes(newDrafts)
+                                }}
+                                initialFocus
+                                locale={ptBR}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0"
+                            onClick={() => {
+                              const newDrafts = [...draftQuotes]
+                              newDrafts.splice(index, 1)
+                              setDraftQuotes(newDrafts)
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                {draftQuotes.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4 border rounded-md border-dashed">
-                    Nenhuma cotação em rascunho. Clique em "Adicionar Fornecedor" para começar.
-                  </p>
-                )}
+                  ))}
+                  {draftQuotes.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4 border rounded-md border-dashed">
+                      Nenhuma cotação em rascunho. Clique em "Adicionar Fornecedor" para começar.
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-end mt-4">
+                  <Button
+                    onClick={handleAddQuote}
+                    disabled={
+                      draftQuotes.length === 0 ||
+                      draftQuotes.some((d) => !d.supplierId || !d.price || !d.deliveryDate)
+                    }
+                  >
+                    <Plus className="w-4 h-4 mr-2" /> Salvar Cotação(ões)
+                  </Button>
+                </div>
               </div>
-              <div className="flex justify-end mt-4">
-                <Button
-                  onClick={handleAddQuote}
-                  disabled={
-                    draftQuotes.length === 0 ||
-                    draftQuotes.some((d) => !d.supplierId || !d.price || !d.deliveryDate)
-                  }
-                >
-                  <Plus className="w-4 h-4 mr-2" /> Salvar Cotação(ões)
-                </Button>
-              </div>
-            </div>
-          )}
+            )}
 
           <div className="py-4 space-y-4">
             <h3 className="font-semibold">Cotações Registradas</h3>
@@ -654,12 +712,11 @@ export default function Purchases() {
                 </TableHeader>
                 <TableBody>
                   {selectedTicket?.quotes.map((quote) => {
-                    const sup = suppliers.find((s) => s.id === quote.supplierId)
-                    const total = quote.price * selectedTicket.quantity
+                    const total = quote.price * selectedTicket.recommendedQuantity
                     return (
                       <TableRow key={quote.id} className={quote.isWinner ? 'bg-primary/5' : ''}>
                         <TableCell className="font-medium">
-                          {sup?.name}
+                          {quote.supplierName}
                           {quote.isWinner && (
                             <Badge
                               variant="default"
@@ -680,19 +737,26 @@ export default function Purchases() {
                           {quote.shippingMethod || '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          {format(new Date(quote.expectedDeliveryDate), 'dd/MM/yyyy')}
+                          {quote.expectedDeliveryDate
+                            ? format(
+                                new Date(quote.expectedDeliveryDate + 'T12:00:00'),
+                                'dd/MM/yyyy',
+                              )
+                            : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          {selectedTicket.status !== 'concluido' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-green-600 text-green-600 hover:bg-green-50"
-                              onClick={() => handleSetWinner(quote.id)}
-                            >
-                              <Trophy className="w-4 h-4 mr-2" /> Escolher
-                            </Button>
-                          )}
+                          {selectedTicket.status !== 'finalizado' &&
+                            selectedTicket.status !== 'cancelado' &&
+                            canFinalize && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-green-600 text-green-600 hover:bg-green-50"
+                                onClick={() => handleSetWinner(quote.id)}
+                              >
+                                <Trophy className="w-4 h-4 mr-2" /> Aprovar
+                              </Button>
+                            )}
                         </TableCell>
                       </TableRow>
                     )
@@ -723,7 +787,8 @@ export default function Purchases() {
                     <div>
                       <h3 className="font-semibold text-lg">{ticket.itemName}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Código: {ticket.itemCode} | Quantidade Solicitada: {ticket.quantity}
+                        Código: {ticket.itemCode} | Quantidade Solicitada:{' '}
+                        {ticket.recommendedQuantity}
                       </p>
                     </div>
                     <Badge variant="secondary">{ticket.quotes.length} Cotações</Badge>
@@ -755,12 +820,17 @@ export default function Purchases() {
                               R$ {quote.price.toFixed(2)}
                             </TableCell>
                             <TableCell className="text-right font-medium">
-                              R$ {(quote.price * ticket.quantity).toFixed(2)}
+                              R$ {(quote.price * ticket.recommendedQuantity).toFixed(2)}
                             </TableCell>
                             <TableCell>{quote.paymentMethod || '-'}</TableCell>
                             <TableCell>{quote.shippingMethod || '-'}</TableCell>
                             <TableCell className="text-right">
-                              {format(new Date(quote.expectedDeliveryDate), 'dd/MM/yyyy')}
+                              {quote.expectedDeliveryDate
+                                ? format(
+                                    new Date(quote.expectedDeliveryDate + 'T12:00:00'),
+                                    'dd/MM/yyyy',
+                                  )
+                                : '-'}
                             </TableCell>
                           </TableRow>
                         ))

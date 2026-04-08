@@ -29,10 +29,8 @@ migrate(
       } catch (_) {}
     }
 
-    // Salva a collection primeiro para que as novas colunas existam no banco de dados
     app.save(oc)
 
-    // Preenche dados vazios para que o índice único não falhe (gerando um valor aleatório para cada)
     app
       .db()
       .newQuery(
@@ -40,52 +38,11 @@ migrate(
       )
       .execute()
 
-    // Adiciona o índice único corretamente manipulando a string exata para evitar erros de parser do SQLite
     const ocUpdated = app.findCollectionByNameOrId('ordens_compra')
-    const idxExpr = 'CREATE UNIQUE INDEX `idx_oc_numero` ON `ordens_compra` (`numero_oc`)'
-    let currentIndexes = ocUpdated.indexes || []
-    if (!currentIndexes.includes(idxExpr)) {
-      currentIndexes.push(idxExpr)
-      ocUpdated.indexes = currentIndexes
-    }
+    ocUpdated.addIndex('idx_oc_numero', true, 'numero_oc', '')
     app.save(ocUpdated)
-
-    let aprovacoes
-    try {
-      aprovacoes = app.findCollectionByNameOrId('aprovacoes_financeiras')
-    } catch (_) {
-      aprovacoes = new Collection({
-        name: 'aprovacoes_financeiras',
-        type: 'base',
-        listRule: "@request.auth.id != ''",
-        viewRule: "@request.auth.id != ''",
-        createRule: "@request.auth.id != ''",
-        updateRule: "@request.auth.id != ''",
-        deleteRule: "@request.auth.role = 'admin'",
-        fields: [
-          {
-            name: 'ordem_compra_id',
-            type: 'relation',
-            required: true,
-            collectionId: oc.id,
-            maxSelect: 1,
-          },
-          { name: 'aprovador', type: 'text', required: true },
-          { name: 'data_aprovacao', type: 'date', required: true },
-          { name: 'observacoes', type: 'text' },
-          { name: 'created', type: 'autodate', onCreate: true, onUpdate: false },
-          { name: 'updated', type: 'autodate', onCreate: true, onUpdate: true },
-        ],
-      })
-      app.save(aprovacoes)
-    }
   },
   (app) => {
-    try {
-      const aprovacoes = app.findCollectionByNameOrId('aprovacoes_financeiras')
-      app.delete(aprovacoes)
-    } catch (_) {}
-
     const oc = app.findCollectionByNameOrId('ordens_compra')
     if (oc.indexes) {
       oc.indexes = oc.indexes.filter((idx) => !idx.includes('idx_oc_numero'))

@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -77,9 +78,18 @@ export default function Purchases() {
   const [selectedRequests, setSelectedRequests] = useState<string[]>([])
   const [isReportOpen, setIsReportOpen] = useState(false)
 
+  // Approval Form State
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false)
+  const [quoteToApprove, setQuoteToApprove] = useState<string | null>(null)
+  const [approvalData, setApprovalData] = useState({
+    aprovador: '',
+    data_aprovacao: undefined as Date | undefined,
+    hora_aprovacao: '',
+    observacoes: '',
+  })
+
   // OC Form State
   const [ocFormOpen, setOcFormOpen] = useState(false)
-  const [quoteToApprove, setQuoteToApprove] = useState<string | null>(null)
   const [ocFormData, setOcFormData] = useState({
     numero_oc: '',
     tipo_entrega: '',
@@ -111,6 +121,7 @@ export default function Purchases() {
   useRealtime('solicitacoes_compra', loadData)
   useRealtime('cotacoes', loadData)
   useRealtime('fornecedores', loadData)
+  useRealtime('aprovacoes_financeiras', loadData)
 
   useEffect(() => {
     if (selectedTicketId) {
@@ -258,6 +269,51 @@ export default function Purchases() {
     }
   }
 
+  const openApprovalModal = (quoteId: string) => {
+    setQuoteToApprove(quoteId)
+    setApprovalData({
+      aprovador: user?.name || '',
+      data_aprovacao: new Date(),
+      hora_aprovacao: format(new Date(), 'HH:mm'),
+      observacoes: '',
+    })
+    setApprovalModalOpen(true)
+  }
+
+  const handleApproveQuote = async () => {
+    if (!selectedTicketId || !quoteToApprove) return
+    if (!approvalData.aprovador || !approvalData.data_aprovacao || !approvalData.hora_aprovacao) {
+      toast.error('Preencha todos os campos obrigatórios.')
+      return
+    }
+
+    try {
+      const dateStr = format(approvalData.data_aprovacao, 'yyyy-MM-dd') + ' 12:00:00.000Z'
+
+      await pb.collection('aprovacoes_financeiras').create({
+        solicitacao_id: selectedTicketId,
+        aprovador: approvalData.aprovador,
+        data_aprovacao: dateStr,
+        hora_aprovacao: approvalData.hora_aprovacao,
+        observacoes: approvalData.observacoes,
+      })
+
+      const ticketQuotes = quotes.filter((q) => q.solicitacao_id === selectedTicketId)
+      await Promise.all(
+        ticketQuotes.map((q) =>
+          pb.collection('cotacoes').update(q.id, { is_winner: q.id === quoteToApprove }),
+        ),
+      )
+
+      toast.success('Aprovação financeira registrada com sucesso!')
+      setApprovalModalOpen(false)
+      setQuoteToApprove(null)
+    } catch (e: any) {
+      console.error(e)
+      toast.error('Erro ao registrar aprovação financeira.')
+    }
+  }
+
   const openOcForm = (quoteId: string) => {
     setQuoteToApprove(quoteId)
     const ticket = enrichedTickets.find((t) => t.id === selectedTicketId)
@@ -271,7 +327,7 @@ export default function Purchases() {
     setOcFormOpen(true)
   }
 
-  const handleSetWinnerAndCreateOC = async () => {
+  const handleCreateOC = async () => {
     if (!selectedTicketId || !quoteToApprove) return
     if (!ocFormData.numero_oc) {
       toast.error('Número OC é obrigatório')
@@ -316,13 +372,6 @@ export default function Purchases() {
         quantidade: ticket.recommendedQuantity,
         valor_unitario: quote.price,
       })
-
-      const ticketQuotes = quotes.filter((q) => q.solicitacao_id === selectedTicketId)
-      await Promise.all(
-        ticketQuotes.map((q) =>
-          pb.collection('cotacoes').update(q.id, { is_winner: q.id === quoteToApprove }),
-        ),
-      )
 
       await pb.collection('solicitacoes_compra').update(selectedTicketId, {
         status: 'finalizado',
@@ -870,6 +919,7 @@ export default function Purchases() {
                 <TableBody>
                   {selectedTicket?.quotes.map((quote) => {
                     const total = quote.price * selectedTicket.recommendedQuantity
+                    const hasWinner = selectedTicket.quotes.some((q) => q.isWinner)
                     return (
                       <TableRow key={quote.id} className={quote.isWinner ? 'bg-primary/5' : ''}>
                         <TableCell className="font-medium">
@@ -879,7 +929,7 @@ export default function Purchases() {
                               variant="default"
                               className="ml-2 bg-green-600 hover:bg-green-700"
                             >
-                              Ganhador
+                              Aprovada
                             </Badge>
                           )}
                         </TableCell>
@@ -906,14 +956,26 @@ export default function Purchases() {
                             selectedTicket.status !== 'cancelado' &&
                             canFinalize && (
                               <div className="flex items-center justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-green-600 text-green-600 hover:bg-green-50"
-                                  onClick={() => openOcForm(quote.id)}
-                                >
-                                  <Trophy className="w-4 h-4 mr-2" /> Gerar OC
-                                </Button>
+                                {!quote.isWinner && !hasWinner && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                                    onClick={() => openApprovalModal(quote.id)}
+                                  >
+                                    <Check className="w-4 h-4 mr-2" /> Aprovar
+                                  </Button>
+                                )}
+                                {quote.isWinner && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-green-600 text-green-600 hover:bg-green-50"
+                                    onClick={() => openOcForm(quote.id)}
+                                  >
+                                    <Trophy className="w-4 h-4 mr-2" /> Gerar OC
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -932,6 +994,86 @@ export default function Purchases() {
               </Table>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={approvalModalOpen} onOpenChange={setApprovalModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Aprovação Financeira</DialogTitle>
+            <DialogDescription>
+              Registre a aprovação financeira para a cotação selecionada.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nome do Aprovador (Financeiro) *</Label>
+              <Input
+                value={approvalData.aprovador}
+                onChange={(e) => setApprovalData({ ...approvalData, aprovador: e.target.value })}
+                placeholder="Nome do responsável"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Data de Aprovação *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={'outline'}
+                      className={cn(
+                        'w-full justify-start text-left font-normal',
+                        !approvalData.data_aprovacao && 'text-muted-foreground',
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {approvalData.data_aprovacao ? (
+                        format(approvalData.data_aprovacao, 'dd/MM/yyyy')
+                      ) : (
+                        <span>Selecione a data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={approvalData.data_aprovacao}
+                      onSelect={(date) =>
+                        setApprovalData({ ...approvalData, data_aprovacao: date })
+                      }
+                      initialFocus
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label>Hora de Aprovação *</Label>
+                <Input
+                  type="time"
+                  value={approvalData.hora_aprovacao}
+                  onChange={(e) =>
+                    setApprovalData({ ...approvalData, hora_aprovacao: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea
+                value={approvalData.observacoes}
+                onChange={(e) => setApprovalData({ ...approvalData, observacoes: e.target.value })}
+                placeholder="Observações adicionais (opcional)"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApprovalModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleApproveQuote}>Confirmar Aprovação</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -985,7 +1127,7 @@ export default function Purchases() {
             <Button variant="outline" onClick={() => setOcFormOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSetWinnerAndCreateOC}>Gerar OC</Button>
+            <Button onClick={handleCreateOC}>Gerar OC</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

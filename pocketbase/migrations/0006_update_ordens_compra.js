@@ -39,7 +39,16 @@ migrate(
       .execute()
 
     const ocUpdated = app.findCollectionByNameOrId('ordens_compra')
-    ocUpdated.addIndex('idx_oc_numero', true, 'numero_oc', '')
+
+    if (!ocUpdated.indexes) {
+      ocUpdated.indexes = []
+    }
+
+    const idxQuery = 'CREATE UNIQUE INDEX `idx_oc_numero` ON `ordens_compra` (`numero_oc`)'
+    if (!ocUpdated.indexes.includes(idxQuery)) {
+      ocUpdated.indexes.push(idxQuery)
+    }
+
     app.save(ocUpdated)
   },
   (app) => {

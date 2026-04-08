@@ -96,4 +96,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-      </Sideba
+      </SidebarFooter>
+    </Sidebar>
+  )
+}

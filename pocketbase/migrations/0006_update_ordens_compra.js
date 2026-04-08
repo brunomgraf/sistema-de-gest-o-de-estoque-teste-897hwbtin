@@ -39,23 +39,13 @@ migrate(
       .execute()
 
     const ocUpdated = app.findCollectionByNameOrId('ordens_compra')
-
-    if (!ocUpdated.indexes) {
-      ocUpdated.indexes = []
-    }
-
-    const idxQuery = 'CREATE UNIQUE INDEX `idx_oc_numero` ON `ordens_compra` (`numero_oc`)'
-    if (!ocUpdated.indexes.includes(idxQuery)) {
-      ocUpdated.indexes.push(idxQuery)
-    }
+    ocUpdated.addIndex('idx_oc_numero', true, 'numero_oc', '')
 
     app.save(ocUpdated)
   },
   (app) => {
     const oc = app.findCollectionByNameOrId('ordens_compra')
-    if (oc.indexes) {
-      oc.indexes = oc.indexes.filter((idx) => !idx.includes('idx_oc_numero'))
-    }
+    oc.removeIndex('idx_oc_numero')
     if (oc.fields.getByName('numero_oc')) oc.fields.removeByName('numero_oc')
     if (oc.fields.getByName('tipo_entrega')) oc.fields.removeByName('tipo_entrega')
     if (oc.fields.getByName('descricao_produtos')) oc.fields.removeByName('descricao_produtos')

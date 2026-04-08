@@ -20,7 +20,7 @@ onRecordAfterUpdateSuccess((e) => {
     } catch (_) {}
 
     if (!hasActive) {
-      const suggested = qtyMin - qtyAtual > 0 ? qtyMin - qtyAtual : 1
+      const suggested = qtyMin * 2 - qtyAtual > 0 ? qtyMin * 2 - qtyAtual : 1
       const col = $app.findCollectionByNameOrId('solicitacoes_compra')
       const ticket = new Record(col)
       ticket.set('item_id', item.id)

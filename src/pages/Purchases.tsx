@@ -178,20 +178,34 @@ export default function Purchases() {
   const handleAddQuote = async () => {
     if (!selectedTicketId) return
 
+    for (const draft of draftQuotes) {
+      const price = parseFloat(draft.price)
+      if (!draft.supplierId) {
+        toast.error('Selecione um fornecedor para todas as cotações.')
+        return
+      }
+      if (isNaN(price) || price <= 0) {
+        toast.error('O preço da cotação deve ser maior que zero.')
+        return
+      }
+      if (!draft.deliveryDate) {
+        toast.error('Selecione a data de entrega para todas as cotações.')
+        return
+      }
+    }
+
     try {
       for (const draft of draftQuotes) {
-        if (draft.supplierId && draft.price && draft.deliveryDate) {
-          const deliveryDateStr = format(draft.deliveryDate, 'yyyy-MM-dd')
-          await pb.collection('cotacoes').create({
-            solicitacao_id: selectedTicketId,
-            fornecedor_id: draft.supplierId,
-            valor_ofertado: parseFloat(draft.price) || 0,
-            prazo_entrega: deliveryDateStr,
-            condicao_pagamento: draft.paymentMethod,
-            frete: draft.shippingMethod,
-            is_winner: false,
-          })
-        }
+        const deliveryDateStr = format(draft.deliveryDate!, 'yyyy-MM-dd')
+        await pb.collection('cotacoes').create({
+          solicitacao_id: selectedTicketId,
+          fornecedor_id: draft.supplierId,
+          valor_ofertado: parseFloat(draft.price),
+          prazo_entrega: deliveryDateStr,
+          condicao_pagamento: draft.paymentMethod,
+          frete: draft.shippingMethod,
+          is_winner: false,
+        })
       }
 
       const ticket = tickets.find((t) => t.id === selectedTicketId)
@@ -206,6 +220,27 @@ export default function Purchases() {
     } catch (e) {
       console.error(e)
       toast.error('Erro ao adicionar cotação.')
+    }
+  }
+
+  const handleDeleteTicket = async (ticketId: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir esta solicitação?')) return
+    try {
+      await pb.collection('solicitacoes_compra').delete(ticketId)
+      toast.success('Solicitação excluída com sucesso')
+      if (selectedTicketId === ticketId) setSelectedTicketId(null)
+    } catch (e) {
+      toast.error('Erro ao excluir solicitação.')
+    }
+  }
+
+  const handleDeleteQuote = async (quoteId: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir esta cotação?')) return
+    try {
+      await pb.collection('cotacoes').delete(quoteId)
+      toast.success('Cotação excluída com sucesso')
+    } catch (e) {
+      toast.error('Erro ao excluir cotação.')
     }
   }
 
@@ -478,10 +513,26 @@ export default function Purchases() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => handleOpenDetails(ticket.id)}>
-                      <Eye className="h-4 w-4 mr-2" />
-                      Detalhes
-                    </Button>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenDetails(ticket.id)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Detalhes
+                      </Button>
+                      {canFinalize && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                          onClick={() => handleDeleteTicket(ticket.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -682,7 +733,10 @@ export default function Purchases() {
                     onClick={handleAddQuote}
                     disabled={
                       draftQuotes.length === 0 ||
-                      draftQuotes.some((d) => !d.supplierId || !d.price || !d.deliveryDate)
+                      draftQuotes.some(
+                        (d) =>
+                          !d.supplierId || !d.price || !d.deliveryDate || parseFloat(d.price) <= 0,
+                      )
                     }
                   >
                     <Plus className="w-4 h-4 mr-2" /> Salvar Cotação(ões)
@@ -748,14 +802,24 @@ export default function Purchases() {
                           {selectedTicket.status !== 'finalizado' &&
                             selectedTicket.status !== 'cancelado' &&
                             canFinalize && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-green-600 text-green-600 hover:bg-green-50"
-                                onClick={() => handleSetWinner(quote.id)}
-                              >
-                                <Trophy className="w-4 h-4 mr-2" /> Aprovar
-                              </Button>
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-green-600 text-green-600 hover:bg-green-50"
+                                  onClick={() => handleSetWinner(quote.id)}
+                                >
+                                  <Trophy className="w-4 h-4 mr-2" /> Aprovar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                                  onClick={() => handleDeleteQuote(quote.id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             )}
                         </TableCell>
                       </TableRow>

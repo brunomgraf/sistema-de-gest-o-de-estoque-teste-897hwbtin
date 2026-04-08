@@ -13,13 +13,16 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Check, ChevronsUpDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 
 const schema = z.object({
   code: z.string().min(1, 'Código é obrigatório'),
@@ -46,10 +49,24 @@ export function ItemForm({
   onCancel: () => void
 }) {
   const [fornecedores, setFornecedores] = useState<any[]>([])
+  const [searchFornecedor, setSearchFornecedor] = useState('')
 
   useEffect(() => {
-    pb.collection('fornecedores').getFullList({ sort: 'nome' }).then(setFornecedores)
-  }, [])
+    const fetchFornecedores = async () => {
+      try {
+        const filterStr = searchFornecedor ? `nome ~ "${searchFornecedor.replace(/"/g, '')}"` : ''
+        const res = await pb.collection('fornecedores').getList(1, 50, {
+          filter: filterStr,
+          sort: 'nome',
+        })
+        setFornecedores(res.items)
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    const timeoutId = setTimeout(fetchFornecedores, 300)
+    return () => clearTimeout(timeoutId)
+  }, [searchFornecedor])
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -151,26 +168,81 @@ export function ItemForm({
             control={form.control}
             name="fornecedor_id"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="flex flex-col">
                 <FormLabel>Fornecedor (Opcional)</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  value={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um fornecedor" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {fornecedores.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className={cn(
+                          'w-full justify-between font-normal',
+                          !field.value && 'text-muted-foreground',
+                        )}
+                      >
+                        {field.value
+                          ? fornecedores.find((f) => f.id === field.value)?.nome ||
+                            'Fornecedor selecionado'
+                          : 'Selecione um fornecedor'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="p-0"
+                    align="start"
+                    style={{ width: 'var(--radix-popover-trigger-width)' }}
+                  >
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Buscar fornecedor..."
+                        value={searchFornecedor}
+                        onValueChange={setSearchFornecedor}
+                      />
+                      <CommandList>
+                        {fornecedores.length === 0 && searchFornecedor ? (
+                          <div className="py-6 text-center text-sm text-muted-foreground">
+                            Nenhum resultado encontrado.
+                          </div>
+                        ) : null}
+                        <CommandGroup>
+                          <CommandItem
+                            value="none"
+                            onSelect={() => {
+                              form.setValue('fornecedor_id', '')
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                !field.value ? 'opacity-100' : 'opacity-0',
+                              )}
+                            />
+                            Nenhum
+                          </CommandItem>
+                          {fornecedores.map((f) => (
+                            <CommandItem
+                              key={f.id}
+                              value={f.nome}
+                              onSelect={() => {
+                                form.setValue('fornecedor_id', f.id)
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  f.id === field.value ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                              {f.nome}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 <FormMessage />
               </FormItem>
             )}

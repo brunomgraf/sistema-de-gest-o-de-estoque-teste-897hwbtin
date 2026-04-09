@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-09T19:38:55.909Z",
+  "generatedAt": "2026-04-09T19:45:36.972Z",
   "collections": [
     {
       "name": "users",
@@ -180,8 +180,8 @@
       "apiRules": {
         "list": "@request.auth.id != \"\"",
         "view": "@request.auth.id != \"\"",
-        "create": "@request.auth.id != \"\"",
-        "update": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != '' && @request.body.numero_oc = ''",
+        "update": "@request.auth.id != '' && @request.body.numero_oc = numero_oc",
         "delete": "@request.auth.role = 'admin'"
       },
       "fields": [
@@ -230,11 +230,43 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "numero_oc",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_entrega",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "condicoes_pagamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "descricao_produtos",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cotacao_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "cotacoes"
         }
       ],
       "indexes": [
         "CREATE INDEX idx_oc_fornecedor ON ordens_compra (fornecedor_id)",
-        "CREATE INDEX idx_oc_status ON ordens_compra (status)"
+        "CREATE INDEX idx_oc_status ON ordens_compra (status)",
+        "CREATE UNIQUE INDEX `idx_ordens_compra_numero_oc` ON `ordens_compra` (numero_oc)"
       ]
     },
     {

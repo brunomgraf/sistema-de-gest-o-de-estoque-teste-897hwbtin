@@ -91,15 +91,6 @@ export default function Purchases() {
     observacoes: '',
   })
 
-  // OC Form State
-  const [ocFormOpen, setOcFormOpen] = useState(false)
-  const [ocFormData, setOcFormData] = useState({
-    numero_oc: '',
-    tipo_entrega: '',
-    condicoes_pagamento: '',
-    descricao_produtos: '',
-  })
-
   const [ordensCompra, setOrdensCompra] = useState<any[]>([])
   const [isDownloading, setIsDownloading] = useState<string | null>(null)
 
@@ -315,6 +306,15 @@ export default function Purchases() {
     try {
       const dateStr = format(approvalData.data_aprovacao, 'yyyy-MM-dd') + ' 12:00:00.000Z'
 
+      // Atualiza as cotações primeiro para que o hook do backend encontre a cotação vencedora
+      const ticketQuotes = quotes.filter((q) => q.solicitacao_id === selectedTicketId)
+      await Promise.all(
+        ticketQuotes.map((q) =>
+          pb.collection('cotacoes').update(q.id, { is_winner: q.id === quoteToApprove }),
+        ),
+      )
+
+      // Cria a aprovação (o hook do backend interceptará e criará a OC automaticamente)
       await pb.collection('aprovacoes_financeiras').create({
         solicitacao_id: selectedTicketId,
         aprovador_nome: approvalData.aprovador_nome,
@@ -323,14 +323,7 @@ export default function Purchases() {
         observacoes: approvalData.observacoes,
       })
 
-      const ticketQuotes = quotes.filter((q) => q.solicitacao_id === selectedTicketId)
-      await Promise.all(
-        ticketQuotes.map((q) =>
-          pb.collection('cotacoes').update(q.id, { is_winner: q.id === quoteToApprove }),
-        ),
-      )
-
-      toast.success('Aprovação financeira registrada com sucesso!')
+      toast.success('Aprovação financeira registrada e Ordem de Compra gerada!')
       setApprovalModalOpen(false)
       setQuoteToApprove(null)
     } catch (e: any) {
@@ -339,19 +332,6 @@ export default function Purchases() {
     } finally {
       setIsApproving(false)
     }
-  }
-
-  const openOcForm = (quoteId: string) => {
-    setQuoteToApprove(quoteId)
-    const ticket = enrichedTickets.find((t) => t.id === selectedTicketId)
-    const quote = ticket?.quotes.find((q) => q.id === quoteId)
-    setOcFormData({
-      numero_oc: `OC-${Math.floor(Math.random() * 1000000)}`,
-      tipo_entrega: quote?.shippingMethod || '',
-      condicoes_pagamento: quote?.paymentMethod || '',
-      descricao_produtos: ticket?.itemName || '',
-    })
-    setOcFormOpen(true)
   }
 
   const handleDownloadOC = async (ticketId: string, ordemCompra: any) => {
@@ -388,66 +368,6 @@ export default function Purchases() {
       toast.error(e.message || 'Erro ao baixar Ordem de Compra.')
     } finally {
       setIsDownloading(null)
-    }
-  }
-
-  const handleCreateOC = async () => {
-    if (!selectedTicketId || !quoteToApprove) return
-    if (!ocFormData.numero_oc) {
-      toast.error('Número OC é obrigatório')
-      return
-    }
-
-    try {
-      const ticket = enrichedTickets.find((t) => t.id === selectedTicketId)
-      const quote = ticket?.quotes.find((q) => q.id === quoteToApprove)
-      if (!ticket || !quote) return
-
-      try {
-        const existing = await pb
-          .collection('ordens_compra')
-          .getFirstListItem(`numero_oc = "${ocFormData.numero_oc}"`)
-        if (existing) {
-          toast.error('Este Número de OC já existe.')
-          return
-        }
-      } catch (e) {
-        // Not found, safe to proceed
-      }
-
-      const newOc = await pb.collection('ordens_compra').create({
-        fornecedor_id: quote.supplierId,
-        data_pedido: new Date().toISOString(),
-        data_entrega_prevista: quote.expectedDeliveryDate
-          ? new Date(quote.expectedDeliveryDate + 'T12:00:00').toISOString()
-          : null,
-        status: 'pendente',
-        valor_total: quote.price * ticket.recommendedQuantity,
-        numero_oc: ocFormData.numero_oc,
-        tipo_entrega: ocFormData.tipo_entrega,
-        condicoes_pagamento: ocFormData.condicoes_pagamento,
-        descricao_produtos: ocFormData.descricao_produtos,
-        cotacao_id: quote.id,
-      })
-
-      await pb.collection('itens_ordem_compra').create({
-        ordem_compra_id: newOc.id,
-        item_id: ticket.itemId,
-        quantidade: ticket.recommendedQuantity,
-        valor_unitario: quote.price,
-      })
-
-      await pb.collection('solicitacoes_compra').update(selectedTicketId, {
-        status: 'finalizado',
-      })
-
-      toast.success('Ordem de Compra gerada com sucesso!')
-      setOcFormOpen(false)
-      setQuoteToApprove(null)
-      setSelectedTicketId(null)
-    } catch (e: any) {
-      console.error(e)
-      toast.error(e?.response?.data?.numero_oc?.message || 'Erro ao gerar Ordem de Compra.')
     }
   }
 
@@ -1032,20 +952,6 @@ export default function Purchases() {
                                 </Button>
                               )}
 
-                            {quote.isWinner &&
-                              canFinalize &&
-                              !selectedTicket.ordemCompra &&
-                              selectedTicket.status !== 'cancelado' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-green-600 text-green-600 hover:bg-green-50"
-                                  onClick={() => openOcForm(quote.id)}
-                                >
-                                  <Trophy className="w-4 h-4 mr-2" /> Gerar OC
-                                </Button>
-                              )}
-
                             {quote.isWinner && selectedTicket.ordemCompra && (
                               <Button
                                 size="sm"
@@ -1174,61 +1080,6 @@ export default function Purchases() {
               {isApproving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Confirmar Aprovação
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={ocFormOpen} onOpenChange={setOcFormOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Gerar Ordem de Compra</DialogTitle>
-            <DialogDescription>
-              Confirme os detalhes adicionais para gerar a Ordem de Compra desta cotação.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Número da OC *</Label>
-              <Input
-                value={ocFormData.numero_oc}
-                onChange={(e) => setOcFormData({ ...ocFormData, numero_oc: e.target.value })}
-                placeholder="Ex: OC-123456"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Descrição dos Produtos</Label>
-              <Input
-                value={ocFormData.descricao_produtos}
-                onChange={(e) =>
-                  setOcFormData({ ...ocFormData, descricao_produtos: e.target.value })
-                }
-                placeholder="Detalhes dos itens adquiridos"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Condições de Pagamento</Label>
-              <Input
-                value={ocFormData.condicoes_pagamento}
-                onChange={(e) =>
-                  setOcFormData({ ...ocFormData, condicoes_pagamento: e.target.value })
-                }
-                placeholder="Ex: Boleto 30 dias"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo de Entrega</Label>
-              <Input
-                value={ocFormData.tipo_entrega}
-                onChange={(e) => setOcFormData({ ...ocFormData, tipo_entrega: e.target.value })}
-                placeholder="Ex: CIF, FOB, Retirada"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOcFormOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleCreateOC}>Gerar OC</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

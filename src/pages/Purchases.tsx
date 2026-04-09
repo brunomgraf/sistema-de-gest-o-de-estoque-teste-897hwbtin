@@ -336,7 +336,15 @@ export default function Purchases() {
       setQuoteToApprove(null)
     } catch (e: any) {
       console.error(e)
-      toast.error(`Erro ao registrar aprovação: ${getErrorMessage(e)}`)
+      try {
+        const ticketQuotes = quotes.filter((q) => q.solicitacao_id === selectedTicketId)
+        await Promise.all(
+          ticketQuotes.map((q) => pb.collection('cotacoes').update(q.id, { is_winner: false })),
+        )
+      } catch (rollbackErr) {
+        console.error('Failed to rollback is_winner flag:', rollbackErr)
+      }
+      toast.error('Falha ao gerar Ordem de Compra. Verifique a conexão e tente novamente.')
     } finally {
       setIsApproving(false)
     }
@@ -612,20 +620,27 @@ export default function Purchases() {
                   </TableCell>
                   <TableCell>{format(new Date(ticket.requestDate), 'dd/MM/yyyy')}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant={
-                        ticket.status === 'pendente'
-                          ? 'destructive'
-                          : ticket.status === 'finalizado'
-                            ? 'default'
-                            : 'secondary'
-                      }
-                    >
-                      {ticket.status === 'pendente' && 'Pendente'}
-                      {ticket.status === 'em_cotacao' && 'Em Cotação'}
-                      {ticket.status === 'finalizado' && 'Finalizado'}
-                      {ticket.status === 'cancelado' && 'Cancelado'}
-                    </Badge>
+                    <div className="flex flex-col items-start gap-1">
+                      <Badge
+                        variant={
+                          ticket.status === 'pendente'
+                            ? 'destructive'
+                            : ticket.status === 'finalizado'
+                              ? 'default'
+                              : 'secondary'
+                        }
+                      >
+                        {ticket.status === 'pendente' && 'Pendente'}
+                        {ticket.status === 'em_cotacao' && 'Em Cotação'}
+                        {ticket.status === 'finalizado' && 'Finalizado'}
+                        {ticket.status === 'cancelado' && 'Cancelado'}
+                      </Badge>
+                      {ticket.status === 'finalizado' && ticket.ordemCompra && (
+                        <span className="text-xs text-muted-foreground font-medium">
+                          {ticket.ordemCompra.numero_oc}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -661,7 +676,14 @@ export default function Purchases() {
       <Dialog open={!!selectedTicketId} onOpenChange={(open) => !open && setSelectedTicketId(null)}>
         <DialogContent className="max-w-5xl">
           <DialogHeader>
-            <DialogTitle>Detalhes da Solicitação</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              Detalhes da Solicitação
+              {selectedTicket?.status === 'finalizado' && selectedTicket?.ordemCompra && (
+                <Badge variant="default" className="bg-primary hover:bg-primary/90">
+                  OC: {selectedTicket.ordemCompra.numero_oc}
+                </Badge>
+              )}
+            </DialogTitle>
             <DialogDescription>
               Gerencie cotações de fornecedores para o item:{' '}
               <strong className="text-foreground">{selectedTicket?.itemName}</strong>

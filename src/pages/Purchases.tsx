@@ -629,16 +629,18 @@ export default function Purchases() {
                         <Eye className="h-4 w-4 mr-2" />
                         Detalhes
                       </Button>
-                      {canFinalize && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
-                          onClick={() => handleDeleteTicket(ticket.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      {canFinalize &&
+                        ticket.status !== 'finalizado' &&
+                        ticket.status !== 'cancelado' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                            onClick={() => handleDeleteTicket(ticket.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                     </div>
                   </TableCell>
                 </TableRow>

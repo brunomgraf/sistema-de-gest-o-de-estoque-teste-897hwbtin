@@ -19,14 +19,18 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { FileCheck, Search, FileText, AlertTriangle, Printer } from 'lucide-react'
+import { FileCheck, Search, FileText, AlertTriangle, Printer, Check, X } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { format } from 'date-fns'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function PurchaseOrders() {
+  const { user } = useAuth()
+  const canEditStatus = user?.role === 'admin' || user?.role === 'gestor'
+
   const [searchParams, setSearchParams] = useSearchParams()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null)
@@ -36,6 +40,7 @@ export default function PurchaseOrders() {
   const [items, setItems] = useState<any[]>([])
   const [aprovacoes, setAprovacoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
   const [approvalFormOpen, setApprovalFormOpen] = useState(false)
   const [approvalData, setApprovalData] = useState({ aprovador_nome: '', observacoes: '' })
@@ -155,6 +160,20 @@ export default function PurchaseOrders() {
     }
   }
 
+  const handleUpdateStatus = async (id: string, newStatus: string) => {
+    if (!window.confirm(`Deseja alterar o status desta OC para ${newStatus.toUpperCase()}?`)) return
+    setIsUpdatingStatus(true)
+    try {
+      await pb.collection('ordens_compra').update(id, { status: newStatus })
+      toast.success(`Status atualizado para ${newStatus}`)
+    } catch (e) {
+      console.error(e)
+      toast.error('Erro ao atualizar status da Ordem de Compra.')
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+
   return (
     <div className="flex-1 space-y-4 p-8 pt-6 relative">
       <div className="print:hidden flex items-center justify-between space-y-2">
@@ -217,8 +236,20 @@ export default function PurchaseOrders() {
                       : '-'}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={po.status === 'pendente' ? 'secondary' : 'default'}>
-                      {po.status === 'pendente' ? 'Pendente' : 'Recebido'}
+                    <Badge
+                      variant={
+                        po.status === 'pendente'
+                          ? 'secondary'
+                          : po.status === 'cancelado'
+                            ? 'destructive'
+                            : 'default'
+                      }
+                    >
+                      {po.status === 'pendente'
+                        ? 'Pendente'
+                        : po.status === 'cancelado'
+                          ? 'Cancelado'
+                          : 'Entregue'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -241,11 +272,43 @@ export default function PurchaseOrders() {
               <span className="flex items-center gap-3">
                 Ordem de Compra: {selectedPo?.number}
                 <Badge
-                  variant={selectedPo?.status === 'pendente' ? 'secondary' : 'default'}
+                  variant={
+                    selectedPo?.status === 'pendente'
+                      ? 'secondary'
+                      : selectedPo?.status === 'cancelado'
+                        ? 'destructive'
+                        : 'default'
+                  }
                   className="text-sm"
                 >
-                  {selectedPo?.status === 'pendente' ? 'Pendente' : 'Recebido'}
+                  {selectedPo?.status === 'pendente'
+                    ? 'Pendente'
+                    : selectedPo?.status === 'cancelado'
+                      ? 'Cancelado'
+                      : 'Entregue'}
                 </Badge>
+                {selectedPo?.status === 'pendente' && canEditStatus && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-4 print:hidden border-green-600 text-green-600 hover:bg-green-50"
+                    onClick={() => handleUpdateStatus(selectedPo.id, 'entregue')}
+                    disabled={isUpdatingStatus}
+                  >
+                    <Check className="w-4 h-4 mr-2" /> Marcar como Entregue
+                  </Button>
+                )}
+                {selectedPo?.status === 'pendente' && canEditStatus && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="print:hidden border-red-600 text-red-600 hover:bg-red-50"
+                    onClick={() => handleUpdateStatus(selectedPo.id, 'cancelado')}
+                    disabled={isUpdatingStatus}
+                  >
+                    <X className="w-4 h-4 mr-2" /> Cancelar OC
+                  </Button>
+                )}
               </span>
               <Button onClick={handlePrint} variant="outline" className="mr-6 print:hidden">
                 <Printer className="w-4 h-4 mr-2" /> Imprimir PDF
@@ -358,13 +421,13 @@ export default function PurchaseOrders() {
                 </div>
               </div>
 
-              <div className="mt-8 border-t pt-6">
+              <div className="mt-8 border-t pt-6 print:hidden">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="font-bold text-lg">Aprovações Financeiras</h4>
                   <Button
                     size="sm"
                     onClick={() => setApprovalFormOpen(true)}
-                    disabled={selectedPo.status === 'recebido'}
+                    disabled={selectedPo.status !== 'pendente'}
                   >
                     Registrar Aprovação
                   </Button>

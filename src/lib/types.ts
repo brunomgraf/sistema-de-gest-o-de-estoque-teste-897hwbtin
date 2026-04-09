@@ -78,6 +78,17 @@ export interface POItem {
   purchaseTicketId: string
 }
 
+export interface AprovacaoFinanceira {
+  id: string
+  solicitacao_id: string
+  aprovador_nome: string
+  data_aprovacao: string
+  hora_aprovacao: string
+  observacoes?: string
+  created: string
+  updated: string
+}
+
 export interface PurchaseOrder {
   id: string
   number: string

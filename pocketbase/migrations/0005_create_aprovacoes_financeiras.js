@@ -13,7 +13,7 @@ migrate(
       listRule: "@request.auth.id != ''",
       viewRule: "@request.auth.id != ''",
       createRule: "@request.auth.id != ''",
-      updateRule: "@request.auth.id != ''",
+      updateRule: "@request.auth.role = 'admin'",
       deleteRule: "@request.auth.role = 'admin'",
       fields: [
         {
@@ -23,7 +23,7 @@ migrate(
           collectionId: solicitacoes.id,
           maxSelect: 1,
         },
-        { name: 'aprovador', type: 'text', required: true },
+        { name: 'aprovador_nome', type: 'text', required: true },
         { name: 'data_aprovacao', type: 'date', required: true },
         { name: 'hora_aprovacao', type: 'text', required: true },
         { name: 'observacoes', type: 'text' },

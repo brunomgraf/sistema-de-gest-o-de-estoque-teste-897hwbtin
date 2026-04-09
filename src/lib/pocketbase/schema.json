@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-08T03:24:54.897Z",
+  "generatedAt": "2026-04-09T19:38:55.909Z",
   "collections": [
     {
       "name": "users",
@@ -551,6 +551,65 @@
         }
       ],
       "indexes": ["CREATE INDEX idx_cotacoes_solic ON cotacoes (solicitacao_id)"]
+    },
+    {
+      "name": "aprovacoes_financeiras",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.role = 'admin'",
+        "delete": "@request.auth.role = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "solicitacao_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "solicitacoes_compra"
+        },
+        {
+          "name": "aprovador_nome",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_aprovacao",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "hora_aprovacao",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
     }
   ]
 }

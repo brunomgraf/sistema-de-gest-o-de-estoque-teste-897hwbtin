@@ -38,17 +38,18 @@ export default function PurchaseOrders() {
   const [loading, setLoading] = useState(true)
 
   const [approvalFormOpen, setApprovalFormOpen] = useState(false)
-  const [approvalData, setApprovalData] = useState({ aprovador: '', observacoes: '' })
+  const [approvalData, setApprovalData] = useState({ aprovador_nome: '', observacoes: '' })
 
   const loadData = async () => {
     try {
-      const [poRes, supRes, itRes, aprovRes] = await Promise.all([
+      const [poRes, supRes, itRes, aprovRes, cotacoesRes] = await Promise.all([
         pb
           .collection('ordens_compra')
           .getFullList({ sort: '-data_pedido', expand: 'fornecedor_id' }),
         pb.collection('fornecedores').getFullList(),
         pb.collection('itens').getFullList(),
         pb.collection('aprovacoes_financeiras').getFullList({ sort: '-data_aprovacao' }),
+        pb.collection('cotacoes').getFullList(),
       ])
 
       const pos = await Promise.all(
@@ -56,8 +57,10 @@ export default function PurchaseOrders() {
           const poItems = await pb
             .collection('itens_ordem_compra')
             .getFullList({ filter: `ordem_compra_id = "${po.id}"` })
+          const cotacao = cotacoesRes.find((c) => c.id === po.cotacao_id)
           return {
             id: po.id,
+            solicitacao_id: cotacao?.solicitacao_id,
             number: po.numero_oc || 'OC-' + po.id.slice(0, 6).toUpperCase(),
             supplierId: po.fornecedor_id,
             supplierName: po.expand?.fornecedor_id?.nome,
@@ -127,20 +130,25 @@ export default function PurchaseOrders() {
   }
 
   const handleSaveApproval = async () => {
-    if (!selectedPoId || !approvalData.aprovador) {
+    if (!selectedPoId || !approvalData.aprovador_nome) {
       toast.error('Preencha o nome do aprovador.')
+      return
+    }
+    if (!selectedPo?.solicitacao_id) {
+      toast.error('Não é possível aprovar: Solicitação de compra não encontrada para esta OC.')
       return
     }
     try {
       await pb.collection('aprovacoes_financeiras').create({
-        ordem_compra_id: selectedPoId,
-        aprovador: approvalData.aprovador,
-        data_aprovacao: new Date().toISOString(),
+        solicitacao_id: selectedPo.solicitacao_id,
+        aprovador_nome: approvalData.aprovador_nome,
+        data_aprovacao: format(new Date(), 'yyyy-MM-dd') + ' 12:00:00.000Z',
+        hora_aprovacao: format(new Date(), 'HH:mm'),
         observacoes: approvalData.observacoes,
       })
       toast.success('Aprovação registrada com sucesso!')
       setApprovalFormOpen(false)
-      setApprovalData({ aprovador: '', observacoes: '' })
+      setApprovalData({ aprovador_nome: '', observacoes: '' })
     } catch (e) {
       console.error(e)
       toast.error('Erro ao registrar aprovação.')
@@ -362,7 +370,8 @@ export default function PurchaseOrders() {
                   </Button>
                 </div>
 
-                {aprovacoes.filter((a) => a.ordem_compra_id === selectedPo.id).length === 0 ? (
+                {aprovacoes.filter((a) => a.solicitacao_id === selectedPo.solicitacao_id).length ===
+                0 ? (
                   <p className="text-sm text-muted-foreground">Nenhuma aprovação registrada.</p>
                 ) : (
                   <div className="border rounded-md">
@@ -376,13 +385,14 @@ export default function PurchaseOrders() {
                       </TableHeader>
                       <TableBody>
                         {aprovacoes
-                          .filter((a) => a.ordem_compra_id === selectedPo.id)
+                          .filter((a) => a.solicitacao_id === selectedPo.solicitacao_id)
                           .map((a) => (
                             <TableRow key={a.id}>
                               <TableCell>
-                                {format(new Date(a.data_aprovacao), 'dd/MM/yyyy HH:mm')}
+                                {format(new Date(a.data_aprovacao), 'dd/MM/yyyy')}{' '}
+                                {a.hora_aprovacao}
                               </TableCell>
-                              <TableCell className="font-medium">{a.aprovador}</TableCell>
+                              <TableCell className="font-medium">{a.aprovador_nome}</TableCell>
                               <TableCell>{a.observacoes || '-'}</TableCell>
                             </TableRow>
                           ))}
@@ -405,8 +415,10 @@ export default function PurchaseOrders() {
             <div className="space-y-2">
               <Label>Aprovador *</Label>
               <Input
-                value={approvalData.aprovador}
-                onChange={(e) => setApprovalData({ ...approvalData, aprovador: e.target.value })}
+                value={approvalData.aprovador_nome}
+                onChange={(e) =>
+                  setApprovalData({ ...approvalData, aprovador_nome: e.target.value })
+                }
                 placeholder="Nome do responsável pela aprovação"
               />
             </div>
@@ -548,7 +560,7 @@ export default function PurchaseOrders() {
           </div>
 
           {/* Aprovações */}
-          {aprovacoes.filter((a) => a.ordem_compra_id === selectedPo.id).length > 0 && (
+          {aprovacoes.filter((a) => a.solicitacao_id === selectedPo.solicitacao_id).length > 0 && (
             <div className="mb-6 border border-black p-4 rounded-sm text-sm">
               <h3 className="font-bold uppercase border-b border-black pb-2 mb-2">
                 Aprovações Financeiras Registradas
@@ -563,12 +575,12 @@ export default function PurchaseOrders() {
                 </thead>
                 <tbody>
                   {aprovacoes
-                    .filter((a) => a.ordem_compra_id === selectedPo.id)
+                    .filter((a) => a.solicitacao_id === selectedPo.solicitacao_id)
                     .map((a) => (
                       <tr key={a.id}>
-                        <td className="py-1">{a.aprovador}</td>
+                        <td className="py-1">{a.aprovador_nome}</td>
                         <td className="py-1">
-                          {format(new Date(a.data_aprovacao), 'dd/MM/yyyy HH:mm')}
+                          {format(new Date(a.data_aprovacao), 'dd/MM/yyyy')} {a.hora_aprovacao}
                         </td>
                         <td className="py-1">{a.observacoes || '-'}</td>
                       </tr>

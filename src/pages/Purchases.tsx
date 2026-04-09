@@ -85,7 +85,7 @@ export default function Purchases() {
   const [quoteToApprove, setQuoteToApprove] = useState<string | null>(null)
   const [isApproving, setIsApproving] = useState(false)
   const [approvalData, setApprovalData] = useState({
-    aprovador: '',
+    aprovador_nome: '',
     data_aprovacao: undefined as Date | undefined,
     hora_aprovacao: '',
     observacoes: '',
@@ -292,7 +292,7 @@ export default function Purchases() {
   const openApprovalModal = (quoteId: string) => {
     setQuoteToApprove(quoteId)
     setApprovalData({
-      aprovador: user?.name || '',
+      aprovador_nome: user?.name || '',
       data_aprovacao: new Date(),
       hora_aprovacao: format(new Date(), 'HH:mm'),
       observacoes: '',
@@ -302,7 +302,11 @@ export default function Purchases() {
 
   const handleApproveQuote = async () => {
     if (!selectedTicketId || !quoteToApprove) return
-    if (!approvalData.aprovador || !approvalData.data_aprovacao || !approvalData.hora_aprovacao) {
+    if (
+      !approvalData.aprovador_nome ||
+      !approvalData.data_aprovacao ||
+      !approvalData.hora_aprovacao
+    ) {
       toast.error('Preencha todos os campos obrigatórios.')
       return
     }
@@ -313,7 +317,7 @@ export default function Purchases() {
 
       await pb.collection('aprovacoes_financeiras').create({
         solicitacao_id: selectedTicketId,
-        aprovador: approvalData.aprovador,
+        aprovador_nome: approvalData.aprovador_nome,
         data_aprovacao: dateStr,
         hora_aprovacao: approvalData.hora_aprovacao,
         observacoes: approvalData.observacoes,
@@ -362,23 +366,26 @@ export default function Purchases() {
         body: JSON.stringify({ id_compra: ticketId }),
       })
 
-      if (!res.ok) throw new Error('Falha ao gerar PDF')
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(errText || 'Falha ao gerar PDF')
+      }
 
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      const dateStr = format(new Date(ordemCompra.created), 'yyyy-MM-dd')
-      a.download = `OC_${ordemCompra.numero_oc}_${dateStr}.pdf`
+      const dateStr = format(new Date(), 'yyyy-MM-dd')
+      a.download = `OC_${ordemCompra.id}_${dateStr}.pdf`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
 
       toast.success('Ordem de Compra baixada com sucesso!')
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-      toast.error('Erro ao baixar Ordem de Compra.')
+      toast.error(e.message || 'Erro ao baixar Ordem de Compra.')
     } finally {
       setIsDownloading(null)
     }
@@ -1094,8 +1101,10 @@ export default function Purchases() {
             <div className="space-y-2">
               <Label>Nome do Aprovador (Financeiro) *</Label>
               <Input
-                value={approvalData.aprovador}
-                onChange={(e) => setApprovalData({ ...approvalData, aprovador: e.target.value })}
+                value={approvalData.aprovador_nome}
+                onChange={(e) =>
+                  setApprovalData({ ...approvalData, aprovador_nome: e.target.value })
+                }
                 placeholder="Nome do responsável"
               />
             </div>

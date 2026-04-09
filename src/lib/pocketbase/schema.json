@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-09T19:51:40.707Z",
+  "generatedAt": "2026-04-09T19:56:30.078Z",
   "collections": [
     {
       "name": "users",
@@ -181,7 +181,7 @@
         "list": "@request.auth.id != \"\"",
         "view": "@request.auth.id != \"\"",
         "create": "@request.auth.id != '' && @request.body.numero_oc = ''",
-        "update": "(@request.auth.role = 'admin' || @request.auth.role = 'gestor')",
+        "update": "(@request.auth.role = 'admin' || @request.auth.role = 'gestor') && (@request.body.numero_oc = '' || @request.body.numero_oc = numero_oc)",
         "delete": "@request.auth.role = 'admin'"
       },
       "fields": [
@@ -591,8 +591,8 @@
         "list": "@request.auth.id != ''",
         "view": "@request.auth.id != ''",
         "create": "@request.auth.id != ''",
-        "update": "@request.auth.role = 'admin'",
-        "delete": "@request.auth.role = 'admin'"
+        "update": "@request.auth.role = 'admin' && solicitacao_id.status != 'finalizado'",
+        "delete": "@request.auth.role = 'admin' && solicitacao_id.status != 'finalizado'"
       },
       "fields": [
         {

@@ -323,7 +323,15 @@ export default function Purchases() {
         observacoes: approvalData.observacoes,
       })
 
-      toast.success('Aprovação financeira registrada e Ordem de Compra gerada!')
+      try {
+        const newOc = await pb
+          .collection('ordens_compra')
+          .getFirstListItem(`cotacao_id = '${quoteToApprove}'`)
+        toast.success(`Aprovação registrada e Ordem de Compra gerada: ${newOc.numero_oc}`)
+      } catch (err) {
+        toast.success('Aprovação financeira registrada e Ordem de Compra gerada!')
+      }
+
       setApprovalModalOpen(false)
       setQuoteToApprove(null)
     } catch (e: any) {

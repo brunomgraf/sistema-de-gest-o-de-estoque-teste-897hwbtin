@@ -1,4 +1,4 @@
-onRecordAfterCreateSuccess((e) => {
+onRecordCreate((e) => {
   const aprovacao = e.record
   const solicitacaoId = aprovacao.get('solicitacao_id')
 
@@ -12,13 +12,15 @@ onRecordAfterCreateSuccess((e) => {
       0,
     )
     if (!quotes || quotes.length === 0) {
-      console.log('No winning quote found for solicitacao:', solicitacaoId)
-      return
+      throw new BadRequestError('Nenhuma cotação vencedora encontrada para esta solicitação.')
     }
     const quote = quotes[0]
 
     // 2. Fetch solicitacao
     const solicitacao = txApp.findRecordById('solicitacoes_compra', solicitacaoId)
+    if (solicitacao.get('status') === 'finalizado') {
+      throw new BadRequestError('Esta solicitação já foi finalizada.')
+    }
 
     // 3. Generate OC Number (e.g., OC-YYYY-XXXX)
     const currentYear = new Date().getFullYear().toString()

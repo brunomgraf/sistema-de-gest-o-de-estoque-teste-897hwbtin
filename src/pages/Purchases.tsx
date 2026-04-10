@@ -307,53 +307,32 @@ export default function Purchases() {
     try {
       const dateStr = format(approvalData.data_aprovacao, 'yyyy-MM-dd') + ' 12:00:00.000Z'
 
-      // Atualiza as cotações primeiro para que o hook do backend encontre a cotação vencedora
-      const ticketQuotes = quotes.filter((q) => q.solicitacao_id === selectedTicketId)
-      await Promise.all(
-        ticketQuotes.map((q) =>
-          pb.collection('cotacoes').update(q.id, { is_winner: q.id === quoteToApprove }),
-        ),
-      )
-
-      // Cria a aprovação (o hook do backend interceptará e criará a OC automaticamente)
-      await pb.collection('aprovacoes_financeiras').create({
-        solicitacao_id: selectedTicketId,
-        aprovador_nome: approvalData.aprovador_nome,
-        data_aprovacao: dateStr,
-        hora_aprovacao: approvalData.hora_aprovacao,
-        observacoes: approvalData.observacoes,
+      const res = await pb.send('/backend/v1/approve-purchase', {
+        method: 'POST',
+        body: JSON.stringify({
+          solicitacao_id: selectedTicketId,
+          quote_id: quoteToApprove,
+          aprovador_nome: approvalData.aprovador_nome,
+          data_aprovacao: dateStr,
+          hora_aprovacao: approvalData.hora_aprovacao,
+          observacoes: approvalData.observacoes,
+        }),
+        headers: { 'Content-Type': 'application/json' },
       })
 
-      let newOcId = ''
-      try {
-        const newOc = await pb
-          .collection('ordens_compra')
-          .getFirstListItem(`cotacao_id = '${quoteToApprove}'`)
-        toast.success(`Aprovação registrada e Ordem de Compra gerada: ${newOc.numero_oc}`)
-        newOcId = newOc.id
-      } catch (err) {
-        toast.success('Aprovação financeira registrada e Ordem de Compra gerada!')
-      }
+      toast.success(`Aprovação registrada e Ordem de Compra gerada: ${res.numero_oc || ''}`)
 
       setApprovalModalOpen(false)
       setQuoteToApprove(null)
 
-      if (newOcId) {
+      if (res.oc_id) {
         // Delay to allow the success toast to be seen and then navigate to print
         setTimeout(() => {
-          navigate(`/ordens-de-compra?poId=${newOcId}&print=true`)
+          navigate(`/ordens-de-compra?poId=${res.oc_id}&print=true`)
         }, 1000)
       }
     } catch (e: any) {
       console.error(e)
-      try {
-        const ticketQuotes = quotes.filter((q) => q.solicitacao_id === selectedTicketId)
-        await Promise.all(
-          ticketQuotes.map((q) => pb.collection('cotacoes').update(q.id, { is_winner: false })),
-        )
-      } catch (rollbackErr) {
-        console.error('Failed to rollback is_winner flag:', rollbackErr)
-      }
       toast.error('Falha ao gerar Ordem de Compra. Verifique a conexão e tente novamente.')
     } finally {
       setIsApproving(false)

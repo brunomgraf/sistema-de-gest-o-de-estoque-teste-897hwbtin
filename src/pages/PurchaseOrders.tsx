@@ -525,7 +525,7 @@ export default function PurchaseOrders() {
               <p className="text-xl font-mono mt-1">Nº {selectedPo.number}</p>
             </div>
             <div className="text-right">
-              <h2 className="text-xl font-bold">EMPRESA EXEMPLO LTDA</h2>
+              <h2 className="text-xl font-bold">OFICINA GRAF</h2>
               <p className="text-sm">CNPJ: 00.000.000/0001-00</p>
               <p className="text-sm">Rua Fictícia, 123 - Centro</p>
               <p className="text-sm">São Paulo - SP, 01000-000</p>

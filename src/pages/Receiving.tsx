@@ -100,12 +100,24 @@ export default function Receiving() {
 
       const totalQuantity = po.items.reduce((acc: number, item: any) => acc + item.quantity, 0)
 
-      await pb.collection('recebimento').create({
-        ordem_compra_id: id,
-        data_recebimento: new Date().toISOString(),
-        quantidade_recebida: totalQuantity,
-        status_verificacao: 'ok',
-      })
+      try {
+        const recebimento = await pb
+          .collection('recebimento')
+          .getFirstListItem(`ordem_compra_id = "${id}"`)
+        await pb.collection('recebimento').update(recebimento.id, {
+          data_recebimento: new Date().toISOString(),
+          quantidade_recebida: totalQuantity,
+          status_verificacao: 'recebido',
+        })
+      } catch (err) {
+        // Fallback in case the hook didn't create the receipt for old records
+        await pb.collection('recebimento').create({
+          ordem_compra_id: id,
+          data_recebimento: new Date().toISOString(),
+          quantidade_recebida: totalQuantity,
+          status_verificacao: 'recebido',
+        })
+      }
 
       for (const item of po.items) {
         const itemRecord = items.find((i) => i.id === item.itemId)

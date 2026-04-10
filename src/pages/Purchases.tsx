@@ -67,6 +67,7 @@ interface DraftQuote {
 
 export default function Purchases() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const canFinalize = user?.role === 'admin' || user?.role === 'gestor'
 
   const [tickets, setTickets] = useState<any[]>([])
@@ -323,17 +324,26 @@ export default function Purchases() {
         observacoes: approvalData.observacoes,
       })
 
+      let newOcId = ''
       try {
         const newOc = await pb
           .collection('ordens_compra')
           .getFirstListItem(`cotacao_id = '${quoteToApprove}'`)
         toast.success(`Aprovação registrada e Ordem de Compra gerada: ${newOc.numero_oc}`)
+        newOcId = newOc.id
       } catch (err) {
         toast.success('Aprovação financeira registrada e Ordem de Compra gerada!')
       }
 
       setApprovalModalOpen(false)
       setQuoteToApprove(null)
+
+      if (newOcId) {
+        // Delay to allow the success toast to be seen and then navigate to print
+        setTimeout(() => {
+          navigate(`/ordens-de-compra?poId=${newOcId}&print=true`)
+        }, 1000)
+      }
     } catch (e: any) {
       console.error(e)
       try {
@@ -985,22 +995,36 @@ export default function Purchases() {
                               )}
 
                             {quote.isWinner && selectedTicket.ordemCompra && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-primary text-primary hover:bg-primary/5"
-                                onClick={() =>
-                                  handleDownloadOC(selectedTicket.id, selectedTicket.ordemCompra)
-                                }
-                                disabled={isDownloading === selectedTicket.id}
-                              >
-                                {isDownloading === selectedTicket.id ? (
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                ) : (
-                                  <Download className="w-4 h-4 mr-2" />
-                                )}
-                                Baixar Ordem de Compra (PDF)
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-primary text-primary hover:bg-primary/5"
+                                  onClick={() =>
+                                    navigate(
+                                      `/ordens-de-compra?poId=${selectedTicket.ordemCompra.id}&print=true`,
+                                    )
+                                  }
+                                >
+                                  <Printer className="w-4 h-4 mr-2" />
+                                  Imprimir Ordem de Compra
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    handleDownloadOC(selectedTicket.id, selectedTicket.ordemCompra)
+                                  }
+                                  disabled={isDownloading === selectedTicket.id}
+                                >
+                                  {isDownloading === selectedTicket.id ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Download className="w-4 h-4 mr-2" />
+                                  )}
+                                  PDF
+                                </Button>
+                              </div>
                             )}
 
                             {selectedTicket.status !== 'finalizado' &&

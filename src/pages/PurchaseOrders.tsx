@@ -105,9 +105,18 @@ export default function PurchaseOrders() {
 
   useEffect(() => {
     const poId = searchParams.get('poId')
+    const shouldPrint = searchParams.get('print') === 'true'
+
     if (poId) {
       setSelectedPoId(poId)
       setSearchParams({})
+
+      if (shouldPrint) {
+        // Wait for dialog to open and data to render
+        setTimeout(() => {
+          handlePrint()
+        }, 500)
+      }
     }
   }, [searchParams, setSearchParams])
 
@@ -311,7 +320,7 @@ export default function PurchaseOrders() {
                 )}
               </span>
               <Button onClick={handlePrint} variant="outline" className="mr-6 print:hidden">
-                <Printer className="w-4 h-4 mr-2" /> Imprimir PDF
+                <Printer className="w-4 h-4 mr-2" /> Imprimir Ordem de Compra
               </Button>
             </DialogTitle>
           </DialogHeader>

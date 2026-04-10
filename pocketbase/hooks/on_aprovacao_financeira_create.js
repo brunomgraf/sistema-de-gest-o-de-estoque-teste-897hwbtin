@@ -80,7 +80,17 @@ onRecordCreate((e) => {
     newItemOc.set('valor_unitario', quote.get('valor_ofertado'))
     txApp.save(newItemOc)
 
-    // 6. Update solicitacoes_compra status
+    // 6. Create recebimento ticket
+    const recCol = txApp.findCollectionByNameOrId('recebimento')
+    const newRec = new Record(recCol)
+    newRec.set('ordem_compra_id', newOc.id)
+    const todayStr = new Date().toISOString().split('T')[0] + ' 12:00:00.000Z'
+    newRec.set('data_recebimento', todayStr)
+    newRec.set('quantidade_recebida', 0)
+    newRec.set('status_verificacao', 'aguardando_entrega')
+    txApp.save(newRec)
+
+    // 7. Update solicitacoes_compra status
     solicitacao.set('status', 'finalizado')
     txApp.save(solicitacao)
   })

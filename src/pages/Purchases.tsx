@@ -333,7 +333,10 @@ export default function Purchases() {
       }
     } catch (e: any) {
       console.error(e)
-      toast.error('Falha ao gerar Ordem de Compra. Verifique a conexão e tente novamente.')
+      toast.error(
+        'Falha ao gerar Ordem de Compra: ' +
+          (e?.response?.message || e.message || 'Erro desconhecido'),
+      )
     } finally {
       setIsApproving(false)
     }

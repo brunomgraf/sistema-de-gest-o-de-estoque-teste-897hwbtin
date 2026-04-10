@@ -60,13 +60,16 @@ routerAdd(
 
       // 4. Generate sequential OC Number
       const currentYear = new Date().getFullYear().toString()
-      const lastOcs = txApp.findRecordsByFilter(
-        'ordens_compra',
-        `numero_oc LIKE 'OC-${currentYear}-%'`,
-        '-numero_oc',
-        1,
-        0,
-      )
+      let lastOcs = []
+      try {
+        lastOcs = txApp.findRecordsByFilter(
+          'ordens_compra',
+          `numero_oc ~ 'OC-${currentYear}-'`,
+          '-numero_oc',
+          1,
+          0,
+        )
+      } catch (_) {}
 
       let seq = 1
       if (lastOcs && lastOcs.length > 0) {
@@ -85,7 +88,11 @@ routerAdd(
       // 5. Create Ordem de Compra
       const ocCol = txApp.findCollectionByNameOrId('ordens_compra')
       const newOc = new Record(ocCol)
-      newOc.set('fornecedor_id', winningQuote.get('fornecedor_id'))
+
+      const fornecedorId = winningQuote.get('fornecedor_id')
+      if (!fornecedorId)
+        throw new BadRequestError('Fornecedor não encontrado na cotação vencedora.')
+      newOc.set('fornecedor_id', fornecedorId)
 
       const todayStr = new Date().toISOString().split('T')[0] + ' 12:00:00.000Z'
       newOc.set('data_pedido', todayStr)
@@ -104,8 +111,11 @@ routerAdd(
       newOc.set('tipo_entrega', winningQuote.get('frete'))
       newOc.set('condicoes_pagamento', winningQuote.get('condicao_pagamento'))
 
+      const itemId = solicitacao.get('item_id')
+      if (!itemId) throw new BadRequestError('Item não encontrado na solicitação.')
+
       try {
-        const item = txApp.findRecordById('itens', solicitacao.get('item_id'))
+        const item = txApp.findRecordById('itens', itemId)
         newOc.set('descricao_produtos', item.get('nome'))
       } catch (_) {}
 
@@ -117,7 +127,7 @@ routerAdd(
       const itemOcCol = txApp.findCollectionByNameOrId('itens_ordem_compra')
       const newItemOc = new Record(itemOcCol)
       newItemOc.set('ordem_compra_id', newOc.id)
-      newItemOc.set('item_id', solicitacao.get('item_id'))
+      newItemOc.set('item_id', itemId)
       newItemOc.set('quantidade', solicitacao.get('quantidade_sugerida'))
       newItemOc.set('valor_unitario', winningQuote.get('valor_ofertado'))
       txApp.save(newItemOc)
@@ -126,7 +136,7 @@ routerAdd(
       const recCol = txApp.findCollectionByNameOrId('recebimento')
       const newRec = new Record(recCol)
       newRec.set('ordem_compra_id', newOc.id)
-      newRec.set('data_recebimento', todayStr)
+      newRec.set('data_recebimento', prazoEntrega ? prazoEntrega + ' 12:00:00.000Z' : todayStr)
       newRec.set('quantidade_recebida', 0)
       newRec.set('status_verificacao', 'aguardando_entrega')
       txApp.save(newRec)

@@ -514,174 +514,190 @@ export default function PurchaseOrders() {
 
       {/* Printable Area - A4 Portrait Optimization */}
       {selectedPo && (
-        <div
-          id="printable-area"
-          className="hidden print:flex flex-col absolute inset-0 bg-white text-black p-8 w-[210mm] min-h-[297mm] box-border"
-        >
-          {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
-            <div>
-              <h1 className="text-3xl font-bold uppercase tracking-tight">Ordem de Compra</h1>
-              <p className="text-xl font-mono mt-1">Nº {selectedPo.number}</p>
-            </div>
-            <div className="text-right">
-              <h2 className="text-xl font-bold">OFICINA GRAF</h2>
-              <p className="text-sm">CNPJ: 00.000.000/0001-00</p>
-              <p className="text-sm">Rua Fictícia, 123 - Centro</p>
-              <p className="text-sm">São Paulo - SP, 01000-000</p>
-              <div className="mt-2">
-                <p className="text-sm font-semibold">Data de Emissão:</p>
-                <p className="text-sm">{format(new Date(), 'dd/MM/yyyy HH:mm')}</p>
+        <>
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `
+            @media print {
+              @page { size: A4 portrait; margin: 10mm; }
+              body * { visibility: hidden; }
+              #printable-area, #printable-area * { visibility: visible; }
+              #printable-area { position: absolute; left: 0; top: 0; width: 100%; min-height: 100%; background: white; margin: 0; padding: 10mm; }
+            }
+          `,
+            }}
+          />
+          <div
+            id="printable-area"
+            className="hidden print:flex flex-col absolute inset-0 bg-white text-black p-8 w-[210mm] min-h-[297mm] box-border"
+          >
+            {/* Header */}
+            <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
+              <div>
+                <h1 className="text-3xl font-bold uppercase tracking-tight">Ordem de Compra</h1>
+                <p className="text-xl font-mono mt-1">Nº {selectedPo.number}</p>
+              </div>
+              <div className="text-right">
+                <h2 className="text-xl font-bold">OFICINA GRAF</h2>
+                <p className="text-sm">CNPJ: 00.000.000/0001-00</p>
+                <p className="text-sm">Rua Fictícia, 123 - Centro</p>
+                <p className="text-sm">São Paulo - SP, 01000-000</p>
+                <div className="mt-2">
+                  <p className="text-sm font-semibold">Data de Emissão:</p>
+                  <p className="text-sm">{format(new Date(), 'dd/MM/yyyy HH:mm')}</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Alert */}
-          <div className="border-2 border-black p-3 mb-6 bg-gray-100 print:bg-transparent">
-            <p className="font-bold text-sm uppercase text-center">
-              Importante: O número desta Ordem de Compra ({selectedPo.number}) deve constar
-              obrigatoriamente na Nota Fiscal.
-            </p>
-          </div>
-
-          {/* Info blocks */}
-          <div className="grid grid-cols-2 gap-6 mb-6 text-sm">
-            <div className="border border-black p-4 rounded-sm">
-              <h3 className="font-bold uppercase border-b border-black pb-2 mb-2">
-                Dados do Fornecedor
-              </h3>
-              <p className="font-bold text-base">
-                {selectedSupplier?.name || 'Fornecedor Desconhecido'}
-              </p>
-              <p className="mt-1">
-                <span className="font-semibold">Email:</span> {selectedSupplier?.email || 'N/A'}
-              </p>
-              <p>
-                <span className="font-semibold">Telefone:</span> {selectedSupplier?.phone || 'N/A'}
+            {/* Alert */}
+            <div className="border-2 border-black p-3 mb-6 bg-gray-100 print:bg-transparent">
+              <p className="font-bold text-sm uppercase text-center">
+                Importante: O número desta Ordem de Compra ({selectedPo.number}) deve constar
+                obrigatoriamente na Nota Fiscal.
               </p>
             </div>
-            <div className="border border-black p-4 rounded-sm">
-              <h3 className="font-bold uppercase border-b border-black pb-2 mb-2">
-                Condições Comerciais
-              </h3>
-              <div className="space-y-1">
-                <p>
-                  <span className="font-semibold">Pagamento:</span>{' '}
-                  {selectedPo.condicoes_pagamento || 'Não informada'}
+
+            {/* Info blocks */}
+            <div className="grid grid-cols-2 gap-6 mb-6 text-sm">
+              <div className="border border-black p-4 rounded-sm">
+                <h3 className="font-bold uppercase border-b border-black pb-2 mb-2">
+                  Dados do Fornecedor
+                </h3>
+                <p className="font-bold text-base">
+                  {selectedSupplier?.name || 'Fornecedor Desconhecido'}
+                </p>
+                <p className="mt-1">
+                  <span className="font-semibold">Email:</span> {selectedSupplier?.email || 'N/A'}
                 </p>
                 <p>
-                  <span className="font-semibold">Frete/Entrega:</span>{' '}
-                  {selectedPo.tipo_entrega || 'Não informado'}
-                </p>
-                <p>
-                  <span className="font-semibold">Data de Entrega:</span>{' '}
-                  {selectedPo.expectedDeliveryDate
-                    ? format(new Date(selectedPo.expectedDeliveryDate), 'dd/MM/yyyy')
-                    : '-'}
+                  <span className="font-semibold">Telefone:</span>{' '}
+                  {selectedSupplier?.phone || 'N/A'}
                 </p>
               </div>
+              <div className="border border-black p-4 rounded-sm">
+                <h3 className="font-bold uppercase border-b border-black pb-2 mb-2">
+                  Condições Comerciais
+                </h3>
+                <div className="space-y-1">
+                  <p>
+                    <span className="font-semibold">Pagamento:</span>{' '}
+                    {selectedPo.condicoes_pagamento || 'Não informada'}
+                  </p>
+                  <p>
+                    <span className="font-semibold">Frete/Entrega:</span>{' '}
+                    {selectedPo.tipo_entrega || 'Não informado'}
+                  </p>
+                  <p>
+                    <span className="font-semibold">Data de Entrega:</span>{' '}
+                    {selectedPo.expectedDeliveryDate
+                      ? format(new Date(selectedPo.expectedDeliveryDate), 'dd/MM/yyyy')
+                      : '-'}
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Table */}
-          <div className="flex-1 mb-6">
-            <table className="w-full text-sm text-left border-collapse border border-black">
-              <thead>
-                <tr className="bg-gray-100 print:bg-transparent">
-                  <th className="p-2 border border-black font-bold w-24">Código</th>
-                  <th className="p-2 border border-black font-bold">Descrição do Item</th>
-                  <th className="p-2 text-right border border-black font-bold w-20">Qtd</th>
-                  <th className="p-2 text-right border border-black font-bold w-28">V. Unit</th>
-                  <th className="p-2 text-right border border-black font-bold w-32">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedPo.items.map((poItem, idx) => {
-                  const itemDetails = items.find((i) => i.id === poItem.itemId)
-                  const total = poItem.quantity * poItem.price
-                  return (
-                    <tr key={idx}>
-                      <td className="p-2 border border-black font-mono text-xs">
-                        {itemDetails?.sku || itemDetails?.code || 'N/A'}
-                      </td>
-                      <td className="p-2 border border-black">
-                        {itemDetails?.nome || 'Item desconhecido'}
-                      </td>
-                      <td className="p-2 text-right border border-black">{poItem.quantity}</td>
-                      <td className="p-2 text-right border border-black">
-                        R$ {poItem.price.toFixed(2)}
-                      </td>
-                      <td className="p-2 text-right border border-black font-medium">
-                        R$ {total.toFixed(2)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer Totals */}
-          <div className="flex justify-end shrink-0 mb-6">
-            <div className="border-2 border-black p-4 min-w-[300px] text-right">
-              <p className="text-sm uppercase font-bold text-gray-700 mb-1">
-                Total da Ordem de Compra
-              </p>
-              <p className="text-2xl font-bold">R$ {selectedPo.totalValue.toFixed(2)}</p>
-            </div>
-          </div>
-
-          {/* Aprovações */}
-          {aprovacoes.filter((a) => a.solicitacao_id === selectedPo.solicitacao_id).length > 0 && (
-            <div className="mb-6 border border-black p-4 rounded-sm text-sm">
-              <h3 className="font-bold uppercase border-b border-black pb-2 mb-2">
-                Aprovações Financeiras Registradas
-              </h3>
-              <table className="w-full">
+            {/* Table */}
+            <div className="flex-1 mb-6">
+              <table className="w-full text-sm text-left border-collapse border border-black">
                 <thead>
-                  <tr>
-                    <th className="text-left font-semibold pb-1 w-1/4">Aprovador</th>
-                    <th className="text-left font-semibold pb-1 w-1/4">Data</th>
-                    <th className="text-left font-semibold pb-1 w-1/2">Observações</th>
+                  <tr className="bg-gray-100 print:bg-transparent">
+                    <th className="p-2 border border-black font-bold w-24">Código</th>
+                    <th className="p-2 border border-black font-bold">Descrição do Item</th>
+                    <th className="p-2 text-right border border-black font-bold w-20">Qtd</th>
+                    <th className="p-2 text-right border border-black font-bold w-28">V. Unit</th>
+                    <th className="p-2 text-right border border-black font-bold w-32">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {aprovacoes
-                    .filter((a) => a.solicitacao_id === selectedPo.solicitacao_id)
-                    .map((a) => (
-                      <tr key={a.id}>
-                        <td className="py-1">{a.aprovador_nome}</td>
-                        <td className="py-1">
-                          {format(new Date(a.data_aprovacao), 'dd/MM/yyyy')} {a.hora_aprovacao}
+                  {selectedPo.items.map((poItem, idx) => {
+                    const itemDetails = items.find((i) => i.id === poItem.itemId)
+                    const total = poItem.quantity * poItem.price
+                    return (
+                      <tr key={idx}>
+                        <td className="p-2 border border-black font-mono text-xs">
+                          {itemDetails?.sku || itemDetails?.code || 'N/A'}
                         </td>
-                        <td className="py-1">{a.observacoes || '-'}</td>
+                        <td className="p-2 border border-black">
+                          {itemDetails?.nome || 'Item desconhecido'}
+                        </td>
+                        <td className="p-2 text-right border border-black">{poItem.quantity}</td>
+                        <td className="p-2 text-right border border-black">
+                          R$ {poItem.price.toFixed(2)}
+                        </td>
+                        <td className="p-2 text-right border border-black font-medium">
+                          R$ {total.toFixed(2)}
+                        </td>
                       </tr>
-                    ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
-          )}
 
-          {/* Signatures */}
-          <div className="mt-auto pt-8 grid grid-cols-2 gap-12">
-            <div className="text-center">
-              <div className="border-b border-black mb-2 mx-4"></div>
-              <p className="font-bold text-sm">Assinatura do Comprador</p>
-              <p className="text-xs text-gray-500 mt-1">Carimbo e Assinatura</p>
+            {/* Footer Totals */}
+            <div className="flex justify-end shrink-0 mb-6">
+              <div className="border-2 border-black p-4 min-w-[300px] text-right">
+                <p className="text-sm uppercase font-bold text-gray-700 mb-1">
+                  Total da Ordem de Compra
+                </p>
+                <p className="text-2xl font-bold">R$ {selectedPo.totalValue.toFixed(2)}</p>
+              </div>
             </div>
-            <div className="text-center">
-              <div className="border-b border-black mb-2 mx-4"></div>
-              <p className="font-bold text-sm">Assinatura do Fornecedor</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Carimbo e Assinatura (Acorde / Recebimento)
-              </p>
+
+            {/* Aprovações */}
+            {aprovacoes.filter((a) => a.solicitacao_id === selectedPo.solicitacao_id).length >
+              0 && (
+              <div className="mb-6 border border-black p-4 rounded-sm text-sm">
+                <h3 className="font-bold uppercase border-b border-black pb-2 mb-2">
+                  Aprovações Financeiras Registradas
+                </h3>
+                <table className="w-full">
+                  <thead>
+                    <tr>
+                      <th className="text-left font-semibold pb-1 w-1/4">Aprovador</th>
+                      <th className="text-left font-semibold pb-1 w-1/4">Data</th>
+                      <th className="text-left font-semibold pb-1 w-1/2">Observações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aprovacoes
+                      .filter((a) => a.solicitacao_id === selectedPo.solicitacao_id)
+                      .map((a) => (
+                        <tr key={a.id}>
+                          <td className="py-1">{a.aprovador_nome}</td>
+                          <td className="py-1">
+                            {format(new Date(a.data_aprovacao), 'dd/MM/yyyy')} {a.hora_aprovacao}
+                          </td>
+                          <td className="py-1">{a.observacoes || '-'}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Signatures */}
+            <div className="mt-auto pt-8 grid grid-cols-2 gap-12">
+              <div className="text-center">
+                <div className="border-b border-black mb-2 mx-4"></div>
+                <p className="font-bold text-sm">Assinatura do Comprador</p>
+                <p className="text-xs text-gray-500 mt-1">Carimbo e Assinatura</p>
+              </div>
+              <div className="text-center">
+                <div className="border-b border-black mb-2 mx-4"></div>
+                <p className="font-bold text-sm">Assinatura do Fornecedor</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Carimbo e Assinatura (Acorde / Recebimento)
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8 text-center text-xs text-gray-500 border-t border-gray-300 pt-4">
+              Documento gerado automaticamente pelo Sistema de Gestão de Estoque.
             </div>
           </div>
-
-          <div className="mt-8 text-center text-xs text-gray-500 border-t border-gray-300 pt-4">
-            Documento gerado automaticamente pelo Sistema de Gestão de Estoque.
-          </div>
-        </div>
+        </>
       )}
     </div>
   )

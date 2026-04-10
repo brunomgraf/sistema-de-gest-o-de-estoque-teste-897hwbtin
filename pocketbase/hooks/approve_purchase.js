@@ -17,134 +17,138 @@ routerAdd(
     let newOcId = ''
     let newOcNumber = ''
 
-    $app.runInTransaction((txApp) => {
-      // 1. Validate solicitacao
-      const solicitacao = txApp.findRecordById('solicitacoes_compra', solicitacao_id)
-      if (solicitacao.get('status') === 'finalizado') {
-        throw new BadRequestError('Esta solicitação já foi finalizada.')
-      }
-
-      // 2. Set winning quote
-      const quotes = txApp.findRecordsByFilter(
-        'cotacoes',
-        `solicitacao_id = '${solicitacao_id}'`,
-        '-created',
-        100,
-        0,
-      )
-      let winningQuote = null
-
-      for (const q of quotes) {
-        if (q.id === quote_id) {
-          q.set('is_winner', true)
-          winningQuote = q
-        } else {
-          q.set('is_winner', false)
+    try {
+      $app.runInTransaction((txApp) => {
+        // 1. Validate solicitacao
+        const solicitacao = txApp.findRecordById('solicitacoes_compra', solicitacao_id)
+        if (solicitacao.get('status') === 'finalizado') {
+          throw new Error('Esta solicitação já foi finalizada.')
         }
-        txApp.save(q)
-      }
 
-      if (!winningQuote) {
-        throw new BadRequestError('Cotação vencedora não encontrada.')
-      }
-
-      // 3. Create aprovacao financeira
-      const aprovCol = txApp.findCollectionByNameOrId('aprovacoes_financeiras')
-      const aprov = new Record(aprovCol)
-      aprov.set('solicitacao_id', solicitacao_id)
-      aprov.set('aprovador_nome', aprovador_nome)
-      aprov.set('data_aprovacao', data_aprovacao)
-      aprov.set('hora_aprovacao', hora_aprovacao)
-      aprov.set('observacoes', observacoes || '')
-      txApp.save(aprov)
-
-      // 4. Generate sequential OC Number
-      const currentYear = new Date().getFullYear().toString()
-      let lastOcs = []
-      try {
-        lastOcs = txApp.findRecordsByFilter(
-          'ordens_compra',
-          `numero_oc ~ 'OC-${currentYear}-'`,
-          '-numero_oc',
-          1,
+        // 2. Set winning quote
+        const quotes = txApp.findRecordsByFilter(
+          'cotacoes',
+          `solicitacao_id = '${solicitacao_id}'`,
+          '-created',
+          100,
           0,
         )
-      } catch (_) {}
+        let winningQuote = null
 
-      let seq = 1
-      if (lastOcs && lastOcs.length > 0) {
-        const lastNum = lastOcs[0].get('numero_oc')
-        const parts = lastNum.split('-')
-        if (parts.length === 3) {
-          const parsed = parseInt(parts[2], 10)
-          if (!isNaN(parsed)) {
-            seq = parsed + 1
+        for (const q of quotes) {
+          if (q.id === quote_id) {
+            q.set('is_winner', true)
+            winningQuote = q
+          } else {
+            q.set('is_winner', false)
+          }
+          txApp.save(q)
+        }
+
+        if (!winningQuote) {
+          throw new Error('Cotação vencedora não encontrada.')
+        }
+
+        // 3. Create aprovacao financeira
+        const aprovCol = txApp.findCollectionByNameOrId('aprovacoes_financeiras')
+        const aprov = new Record(aprovCol)
+        aprov.set('solicitacao_id', solicitacao_id)
+        aprov.set('aprovador_nome', aprovador_nome)
+        aprov.set('data_aprovacao', data_aprovacao)
+        aprov.set('hora_aprovacao', hora_aprovacao)
+        aprov.set('observacoes', observacoes || '')
+        txApp.save(aprov)
+
+        // 4. Generate sequential OC Number
+        const currentYear = new Date().getFullYear().toString()
+        let lastOcs = []
+        try {
+          lastOcs = txApp.findRecordsByFilter(
+            'ordens_compra',
+            `numero_oc ~ 'OC-${currentYear}-'`,
+            '-numero_oc',
+            1,
+            0,
+          )
+        } catch (_) {}
+
+        let seq = 1
+        if (lastOcs && lastOcs.length > 0) {
+          const lastNum = lastOcs[0].get('numero_oc')
+          const parts = lastNum.split('-')
+          if (parts.length === 3) {
+            const parsed = parseInt(parts[2], 10)
+            if (!isNaN(parsed)) {
+              seq = parsed + 1
+            }
           }
         }
-      }
-      const numeroOc = `OC-${currentYear}-${seq.toString().padStart(4, '0')}`
-      newOcNumber = numeroOc
+        const numeroOc = `OC-${currentYear}-${seq.toString().padStart(4, '0')}`
+        newOcNumber = numeroOc
 
-      // 5. Create Ordem de Compra
-      const ocCol = txApp.findCollectionByNameOrId('ordens_compra')
-      const newOc = new Record(ocCol)
+        // 5. Create Ordem de Compra
+        const ocCol = txApp.findCollectionByNameOrId('ordens_compra')
+        const newOc = new Record(ocCol)
 
-      const fornecedorId = winningQuote.get('fornecedor_id')
-      if (!fornecedorId)
-        throw new BadRequestError('Fornecedor não encontrado na cotação vencedora.')
-      newOc.set('fornecedor_id', fornecedorId)
+        const fornecedorId = winningQuote.get('fornecedor_id')
+        if (!fornecedorId) throw new Error('Fornecedor não encontrado na cotação vencedora.')
+        newOc.set('fornecedor_id', fornecedorId)
 
-      const todayStr = new Date().toISOString().split('T')[0] + ' 12:00:00.000Z'
-      newOc.set('data_pedido', todayStr)
+        const todayStr = new Date().toISOString().split('T')[0] + ' 12:00:00.000Z'
+        newOc.set('data_pedido', todayStr)
 
-      const prazoEntrega = winningQuote.get('prazo_entrega')
-      if (prazoEntrega) {
-        newOc.set('data_entrega_prevista', prazoEntrega + ' 12:00:00.000Z')
-      }
+        const prazoEntrega = winningQuote.get('prazo_entrega')
+        if (prazoEntrega) {
+          newOc.set('data_entrega_prevista', prazoEntrega + ' 12:00:00.000Z')
+        }
 
-      newOc.set('status', 'pendente')
-      newOc.set(
-        'valor_total',
-        winningQuote.get('valor_ofertado') * solicitacao.get('quantidade_sugerida'),
-      )
-      newOc.set('numero_oc', numeroOc)
-      newOc.set('tipo_entrega', winningQuote.get('frete'))
-      newOc.set('condicoes_pagamento', winningQuote.get('condicao_pagamento'))
+        newOc.set('status', 'pendente')
 
-      const itemId = solicitacao.get('item_id')
-      if (!itemId) throw new BadRequestError('Item não encontrado na solicitação.')
+        const qtySugerida = solicitacao.get('quantidade_sugerida') || 0
+        const valOfertado = winningQuote.get('valor_ofertado') || 0
+        newOc.set('valor_total', valOfertado * qtySugerida)
 
-      try {
-        const item = txApp.findRecordById('itens', itemId)
-        newOc.set('descricao_produtos', item.get('nome'))
-      } catch (_) {}
+        newOc.set('numero_oc', numeroOc)
+        newOc.set('tipo_entrega', winningQuote.get('frete'))
+        newOc.set('condicoes_pagamento', winningQuote.get('condicao_pagamento'))
 
-      newOc.set('cotacao_id', winningQuote.id)
-      txApp.save(newOc)
-      newOcId = newOc.id
+        const itemId = solicitacao.get('item_id')
+        if (!itemId) throw new Error('Item não encontrado na solicitação.')
 
-      // 6. Create Itens da Ordem de Compra
-      const itemOcCol = txApp.findCollectionByNameOrId('itens_ordem_compra')
-      const newItemOc = new Record(itemOcCol)
-      newItemOc.set('ordem_compra_id', newOc.id)
-      newItemOc.set('item_id', itemId)
-      newItemOc.set('quantidade', solicitacao.get('quantidade_sugerida'))
-      newItemOc.set('valor_unitario', winningQuote.get('valor_ofertado'))
-      txApp.save(newItemOc)
+        try {
+          const item = txApp.findRecordById('itens', itemId)
+          newOc.set('descricao_produtos', item.get('nome'))
+        } catch (_) {}
 
-      // 7. Create Recebimento Ticket
-      const recCol = txApp.findCollectionByNameOrId('recebimento')
-      const newRec = new Record(recCol)
-      newRec.set('ordem_compra_id', newOc.id)
-      newRec.set('data_recebimento', prazoEntrega ? prazoEntrega + ' 12:00:00.000Z' : todayStr)
-      newRec.set('quantidade_recebida', 0)
-      newRec.set('status_verificacao', 'aguardando_entrega')
-      txApp.save(newRec)
+        newOc.set('cotacao_id', winningQuote.id)
+        txApp.save(newOc)
+        newOcId = newOc.id
 
-      // 8. Update Solicitacao to finalizado
-      solicitacao.set('status', 'finalizado')
-      txApp.save(solicitacao)
-    })
+        // 6. Create Itens da Ordem de Compra
+        const itemOcCol = txApp.findCollectionByNameOrId('itens_ordem_compra')
+        const newItemOc = new Record(itemOcCol)
+        newItemOc.set('ordem_compra_id', newOc.id)
+        newItemOc.set('item_id', itemId)
+        newItemOc.set('quantidade', qtySugerida)
+        newItemOc.set('valor_unitario', valOfertado)
+        txApp.save(newItemOc)
+
+        // 7. Create Recebimento Ticket
+        const recCol = txApp.findCollectionByNameOrId('recebimento')
+        const newRec = new Record(recCol)
+        newRec.set('ordem_compra_id', newOc.id)
+        newRec.set('data_recebimento', prazoEntrega ? prazoEntrega + ' 12:00:00.000Z' : todayStr)
+        newRec.set('quantidade_recebida', 0)
+        newRec.set('status_verificacao', 'aguardando_entrega')
+        txApp.save(newRec)
+
+        // 8. Update Solicitacao to finalizado
+        solicitacao.set('status', 'finalizado')
+        txApp.save(solicitacao)
+      })
+    } catch (err) {
+      throw new BadRequestError(`Falha na aprovação: ${err.message}`)
+    }
 
     return e.json(200, { success: true, oc_id: newOcId, numero_oc: newOcNumber })
   },

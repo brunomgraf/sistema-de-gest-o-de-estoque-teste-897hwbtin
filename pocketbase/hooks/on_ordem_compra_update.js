@@ -14,7 +14,12 @@ onRecordUpdateRequest((e) => {
   ]
 
   for (const field of readOnlyFields) {
-    if (newRecord.get(field) != oldRecord.get(field)) {
+    const newVal = newRecord.get(field)
+    const oldVal = oldRecord.get(field)
+
+    // Uses strict string comparison to avoid false positives (e.g., matching Date objects or integers to strings)
+    // This allows updates to pass without false immutability constraint violations
+    if (String(newVal) !== String(oldVal)) {
       throw new BadRequestError(
         `O campo ${field} é imutável e não pode ser modificado após a criação.`,
       )
@@ -24,9 +29,13 @@ onRecordUpdateRequest((e) => {
   const oldStatus = oldRecord.get('status')
   const newStatus = newRecord.get('status')
 
+  if (oldStatus === newStatus) {
+    return e.next()
+  }
+
   if (oldStatus !== 'pendente') {
     throw new BadRequestError(
-      'Não é possível alterar uma ordem de compra que já foi finalizada ou cancelada.',
+      'Não é possível alterar o status de uma ordem de compra que já foi finalizada ou cancelada.',
     )
   }
 

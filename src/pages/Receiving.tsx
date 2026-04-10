@@ -98,47 +98,6 @@ export default function Receiving() {
 
       await pb.collection('ordens_compra').update(id, { status: 'entregue' })
 
-      const totalQuantity = po.items.reduce((acc: number, item: any) => acc + item.quantity, 0)
-
-      try {
-        const recebimento = await pb
-          .collection('recebimento')
-          .getFirstListItem(`ordem_compra_id = "${id}"`)
-        await pb.collection('recebimento').update(recebimento.id, {
-          data_recebimento: new Date().toISOString(),
-          quantidade_recebida: totalQuantity,
-          status_verificacao: 'recebido',
-        })
-      } catch (err) {
-        // Fallback in case the hook didn't create the receipt for old records
-        await pb.collection('recebimento').create({
-          ordem_compra_id: id,
-          data_recebimento: new Date().toISOString(),
-          quantidade_recebida: totalQuantity,
-          status_verificacao: 'recebido',
-        })
-      }
-
-      for (const item of po.items) {
-        const itemRecord = items.find((i) => i.id === item.itemId)
-        if (itemRecord) {
-          const newQuantity = (itemRecord.quantidade_atual || 0) + item.quantity
-
-          await pb.collection('itens').update(item.itemId, {
-            quantidade_atual: newQuantity,
-          })
-
-          await pb.collection('movimentacoes').create({
-            item_id: item.itemId,
-            tipo_movimento: 'entrada',
-            quantidade: item.quantity,
-            data_movimento: new Date().toISOString(),
-            motivo: `Recebimento da Ordem de Compra ${po.number}`,
-            usuario_id: user.id,
-          })
-        }
-      }
-
       toast.success('Ordem de compra recebida com sucesso! Estoque atualizado.')
     } catch (e: any) {
       toast.error('Erro ao receber ordem de compra: ' + getErrorMessage(e))

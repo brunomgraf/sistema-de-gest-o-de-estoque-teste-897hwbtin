@@ -26,6 +26,7 @@ import { format } from 'date-fns'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/use-auth'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export default function PurchaseOrders() {
   const { user } = useAuth()
@@ -174,10 +175,10 @@ export default function PurchaseOrders() {
     setIsUpdatingStatus(true)
     try {
       await pb.collection('ordens_compra').update(id, { status: newStatus })
-      toast.success(`Status atualizado para ${newStatus}`)
+      toast.success('Ordem de Compra atualizada com sucesso!')
     } catch (e) {
       console.error(e)
-      toast.error('Erro ao atualizar status da Ordem de Compra.')
+      toast.error('Erro ao atualizar OC: ' + getErrorMessage(e))
     } finally {
       setIsUpdatingStatus(false)
     }

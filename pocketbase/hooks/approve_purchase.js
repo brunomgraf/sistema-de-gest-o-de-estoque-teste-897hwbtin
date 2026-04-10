@@ -3,154 +3,110 @@ routerAdd(
   '/backend/v1/approve-purchase',
   (e) => {
     const body = e.requestInfo().body
-    const solicitacao_id = body.solicitacao_id
-    const quote_id = body.quote_id
-    const aprovador_nome = body.aprovador_nome
-    const data_aprovacao = body.data_aprovacao
-    const hora_aprovacao = body.hora_aprovacao
-    const observacoes = body.observacoes
+    const solicId = body.solicitacao_id
+    const quoteId = body.quote_id
+    const aprovNome = body.aprovador_nome
+    const dataAprov = body.data_aprovacao
+    const horaAprov = body.hora_aprovacao
+    const obs = body.observacoes || ''
 
-    if (!solicitacao_id || !quote_id || !aprovador_nome) {
-      throw new BadRequestError('Dados incompletos.')
+    if (!solicId || !quoteId || !aprovNome || !dataAprov || !horaAprov) {
+      throw new BadRequestError('Dados obrigatórios faltando.')
     }
 
-    let newOcId = ''
-    let newOcNumber = ''
+    let responseData = {}
 
-    try {
-      $app.runInTransaction((txApp) => {
-        // 1. Validate solicitacao
-        const solicitacao = txApp.findRecordById('solicitacoes_compra', solicitacao_id)
-        if (solicitacao.get('status') === 'finalizado') {
-          throw new Error('Esta solicitação já foi finalizada.')
+    $app.runInTransaction((txApp) => {
+      try {
+        const solic = txApp.findRecordById('solicitacoes_compra', solicId)
+        if (solic.get('status') === 'finalizado') {
+          throw new Error('Solicitação já finalizada.')
         }
 
-        // 2. Set winning quote
-        const quotes = txApp.findRecordsByFilter(
+        const quote = txApp.findRecordById('cotacoes', quoteId)
+        if (quote.get('solicitacao_id') !== solicId) {
+          throw new Error('Cotação não pertence a esta solicitação.')
+        }
+
+        quote.set('is_winner', true)
+        txApp.save(quote)
+
+        const otherQuotes = txApp.findRecordsByFilter(
           'cotacoes',
-          `solicitacao_id = '${solicitacao_id}'`,
-          '-created',
+          `solicitacao_id = {:id} && id != {:qid}`,
+          '',
           100,
           0,
+          { id: solicId, qid: quoteId },
         )
-        let winningQuote = null
-
-        for (const q of quotes) {
-          if (q.id === quote_id) {
-            q.set('is_winner', true)
-            winningQuote = q
-          } else {
-            q.set('is_winner', false)
-          }
+        for (let q of otherQuotes) {
+          q.set('is_winner', false)
           txApp.save(q)
         }
 
-        if (!winningQuote) {
-          throw new Error('Cotação vencedora não encontrada.')
-        }
+        solic.set('status', 'finalizado')
+        txApp.save(solic)
 
-        // 3. Create aprovacao financeira
         const aprovCol = txApp.findCollectionByNameOrId('aprovacoes_financeiras')
         const aprov = new Record(aprovCol)
-        aprov.set('solicitacao_id', solicitacao_id)
-        aprov.set('aprovador_nome', aprovador_nome)
-        aprov.set('data_aprovacao', data_aprovacao)
-        aprov.set('hora_aprovacao', hora_aprovacao)
-        aprov.set('observacoes', observacoes || '')
+        aprov.set('solicitacao_id', solicId)
+        aprov.set('aprovador_nome', aprovNome)
+        aprov.set('data_aprovacao', dataAprov)
+        aprov.set('hora_aprovacao', horaAprov)
+        aprov.set('observacoes', obs)
         txApp.save(aprov)
 
-        // 4. Generate sequential OC Number
-        const currentYear = new Date().getFullYear().toString()
-        let lastOcs = []
-        try {
-          lastOcs = txApp.findRecordsByFilter(
-            'ordens_compra',
-            `numero_oc ~ 'OC-${currentYear}-'`,
-            '-numero_oc',
-            1,
-            0,
-          )
-        } catch (_) {}
-
-        let seq = 1
-        if (lastOcs && lastOcs.length > 0) {
-          const lastNum = lastOcs[0].get('numero_oc')
-          const parts = lastNum.split('-')
-          if (parts.length === 3) {
-            const parsed = parseInt(parts[2], 10)
-            if (!isNaN(parsed)) {
-              seq = parsed + 1
-            }
-          }
-        }
-        const numeroOc = `OC-${currentYear}-${seq.toString().padStart(4, '0')}`
-        newOcNumber = numeroOc
-
-        // 5. Create Ordem de Compra
         const ocCol = txApp.findCollectionByNameOrId('ordens_compra')
-        const newOc = new Record(ocCol)
+        const oc = new Record(ocCol)
 
-        const fornecedorId = winningQuote.get('fornecedor_id')
-        if (!fornecedorId) throw new Error('Fornecedor não encontrado na cotação vencedora.')
-        newOc.set('fornecedor_id', fornecedorId)
+        const year = new Date().getFullYear()
+        const randomNum = Math.floor(1000 + Math.random() * 9000)
+        const numeroOc = `OC-${year}-${randomNum}-${quoteId.substring(0, 4).toUpperCase()}`
 
-        const todayStr = new Date().toISOString().split('T')[0] + ' 12:00:00.000Z'
-        newOc.set('data_pedido', todayStr)
+        oc.set('numero_oc', numeroOc)
+        oc.set('fornecedor_id', quote.get('fornecedor_id'))
+        oc.set('data_pedido', new Date().toISOString())
 
-        const prazoEntrega = winningQuote.get('prazo_entrega')
-        if (prazoEntrega) {
-          newOc.set('data_entrega_prevista', prazoEntrega + ' 12:00:00.000Z')
+        const prazo = quote.get('prazo_entrega')
+        if (prazo && !prazo.includes('T')) {
+          oc.set('data_entrega_prevista', prazo + ' 12:00:00.000Z')
+        } else {
+          oc.set('data_entrega_prevista', prazo)
         }
 
-        newOc.set('status', 'pendente')
+        oc.set('status', 'pendente')
+        oc.set('valor_total', quote.get('valor_ofertado') * solic.get('quantidade_sugerida'))
+        oc.set('tipo_entrega', quote.get('frete'))
+        oc.set('condicoes_pagamento', quote.get('condicao_pagamento'))
+        oc.set('cotacao_id', quoteId)
+        txApp.save(oc)
 
-        const qtySugerida = solicitacao.get('quantidade_sugerida') || 0
-        const valOfertado = winningQuote.get('valor_ofertado') || 0
-        newOc.set('valor_total', valOfertado * qtySugerida)
-
-        newOc.set('numero_oc', numeroOc)
-        newOc.set('tipo_entrega', winningQuote.get('frete'))
-        newOc.set('condicoes_pagamento', winningQuote.get('condicao_pagamento'))
-
-        const itemId = solicitacao.get('item_id')
-        if (!itemId) throw new Error('Item não encontrado na solicitação.')
-
-        try {
-          const item = txApp.findRecordById('itens', itemId)
-          newOc.set('descricao_produtos', item.get('nome'))
-        } catch (_) {}
-
-        newOc.set('cotacao_id', winningQuote.id)
-        txApp.save(newOc)
-        newOcId = newOc.id
-
-        // 6. Create Itens da Ordem de Compra
         const itemOcCol = txApp.findCollectionByNameOrId('itens_ordem_compra')
-        const newItemOc = new Record(itemOcCol)
-        newItemOc.set('ordem_compra_id', newOc.id)
-        newItemOc.set('item_id', itemId)
-        newItemOc.set('quantidade', qtySugerida)
-        newItemOc.set('valor_unitario', valOfertado)
-        txApp.save(newItemOc)
+        const itemOc = new Record(itemOcCol)
+        itemOc.set('ordem_compra_id', oc.get('id'))
+        itemOc.set('item_id', solic.get('item_id'))
+        itemOc.set('quantidade', solic.get('quantidade_sugerida'))
+        itemOc.set('valor_unitario', quote.get('valor_ofertado'))
+        txApp.save(itemOc)
 
-        // 7. Create Recebimento Ticket
         const recCol = txApp.findCollectionByNameOrId('recebimento')
-        const newRec = new Record(recCol)
-        newRec.set('ordem_compra_id', newOc.id)
-        newRec.set('data_recebimento', prazoEntrega ? prazoEntrega + ' 12:00:00.000Z' : todayStr)
-        newRec.set('quantidade_recebida', 0)
-        newRec.set('status_verificacao', 'aguardando_entrega')
-        txApp.save(newRec)
+        const rec = new Record(recCol)
+        rec.set('ordem_compra_id', oc.get('id'))
+        rec.set('quantidade_recebida', 0)
+        rec.set('status_verificacao', 'Pendente')
+        txApp.save(rec)
 
-        // 8. Update Solicitacao to finalizado
-        solicitacao.set('status', 'finalizado')
-        txApp.save(solicitacao)
-      })
-    } catch (err) {
-      throw new BadRequestError(`Falha na aprovação: ${err.message}`)
-    }
+        responseData = {
+          success: true,
+          numero_oc: oc.get('numero_oc'),
+          oc_id: oc.get('id'),
+        }
+      } catch (error) {
+        throw new BadRequestError(`Falha na aprovação: ${error.message}`)
+      }
+    })
 
-    return e.json(200, { success: true, oc_id: newOcId, numero_oc: newOcNumber })
+    return e.json(200, responseData)
   },
   $apis.requireAuth(),
 )

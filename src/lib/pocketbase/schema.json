@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-10T01:30:50.819Z",
+  "generatedAt": "2026-04-10T01:40:28.720Z",
   "collections": [
     {
       "name": "users",
@@ -347,13 +347,13 @@
         {
           "name": "data_recebimento",
           "type": "date",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
           "name": "quantidade_recebida",
           "type": "number",
-          "required": true,
+          "required": false,
           "system": false
         },
         {

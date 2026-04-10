@@ -123,6 +123,8 @@ export default function Purchases() {
   useRealtime('fornecedores', loadData)
   useRealtime('aprovacoes_financeiras', loadData)
   useRealtime('ordens_compra', loadData)
+  useRealtime('recebimento', loadData)
+  useRealtime('itens_ordem_compra', loadData)
 
   useEffect(() => {
     if (selectedTicketId) {

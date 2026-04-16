@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-10T01:53:03.189Z",
+  "generatedAt": "2026-04-16T20:22:10.496Z",
   "collections": [
     {
       "name": "users",
@@ -642,6 +642,58 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "item_fornecedores",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.role = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "item_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "itens"
+        },
+        {
+          "name": "fornecedor_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "fornecedores"
+        },
+        {
+          "name": "observacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_item_fornecedores_item ON item_fornecedores (item_id)",
+        "CREATE INDEX idx_item_fornecedores_forn ON item_fornecedores (fornecedor_id)",
+        "CREATE UNIQUE INDEX idx_item_fornecedores_unique ON item_fornecedores (item_id, fornecedor_id)"
+      ]
     }
   ]
 }

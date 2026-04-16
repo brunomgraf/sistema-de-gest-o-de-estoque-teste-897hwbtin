@@ -18,6 +18,15 @@ export interface Supplier {
 
 export type SupplierPreference = 'primary' | 'secondary' | 'tertiary'
 
+export interface ItemFornecedor {
+  id: string
+  item_id: string
+  fornecedor_id: string
+  observacao?: string
+  created: string
+  updated: string
+}
+
 export interface ItemSupplier {
   supplierId: string
   preference: SupplierPreference

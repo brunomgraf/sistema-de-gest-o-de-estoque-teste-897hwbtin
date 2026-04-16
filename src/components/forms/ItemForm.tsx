@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { useEffect, useState } from 'react'
@@ -13,27 +13,49 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Command,
+  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
 
-const schema = z.object({
-  code: z.string().min(1, 'Código é obrigatório'),
-  name: z.string().min(1, 'Nome é obrigatório'),
-  currentQuantity: z.coerce.number().min(0),
-  minQuantity: z.coerce.number().min(0),
-  costPrice: z.coerce.number().min(0),
-  pdfUrl: z.string().url('URL inválida').optional().or(z.literal('')),
-  shelfLocation: z.string().optional().or(z.literal('')),
-  fornecedor_id: z.string().optional().or(z.literal('')),
-})
+const schema = z
+  .object({
+    code: z.string().min(1, 'Código é obrigatório'),
+    name: z.string().min(1, 'Nome é obrigatório'),
+    currentQuantity: z.coerce.number().min(0),
+    minQuantity: z.coerce.number().min(0),
+    costPrice: z.coerce.number().min(0),
+    pdfUrl: z.string().url('URL inválida').optional().or(z.literal('')),
+    shelfLocation: z.string().optional().or(z.literal('')),
+    fornecedor_id: z.string().optional().or(z.literal('')),
+    fornecedores: z
+      .array(
+        z.object({
+          fornecedor_id: z.string().min(1, 'Selecione um fornecedor'),
+          observacao: z.string().optional(),
+        }),
+      )
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.fornecedores && data.fornecedores.length > 0) {
+      const ids = data.fornecedores.map((f) => f.fornecedor_id)
+      if (new Set(ids).size !== ids.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Não é possível adicionar o mesmo fornecedor mais de uma vez.',
+          path: ['fornecedores'],
+        })
+      }
+    }
+  })
 
 type FormValues = z.infer<typeof schema>
 
@@ -45,28 +67,11 @@ export function ItemForm({
 }: {
   defaultValues?: Partial<FormValues>
   isEditing?: boolean
-  onSubmit: (data: FormValues) => void
+  onSubmit: (data: FormValues) => any
   onCancel: () => void
 }) {
   const [fornecedores, setFornecedores] = useState<any[]>([])
-  const [searchFornecedor, setSearchFornecedor] = useState('')
-
-  useEffect(() => {
-    const fetchFornecedores = async () => {
-      try {
-        const filterStr = searchFornecedor ? `nome ~ "${searchFornecedor.replace(/"/g, '')}"` : ''
-        const res = await pb.collection('fornecedores').getList(1, 50, {
-          filter: filterStr,
-          sort: 'nome',
-        })
-        setFornecedores(res.items)
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    const timeoutId = setTimeout(fetchFornecedores, 300)
-    return () => clearTimeout(timeoutId)
-  }, [searchFornecedor])
+  const [isLoadingRels, setIsLoadingRels] = useState(isEditing)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -79,19 +84,126 @@ export function ItemForm({
       pdfUrl: defaultValues?.pdfUrl || '',
       shelfLocation: defaultValues?.shelfLocation || '',
       fornecedor_id: defaultValues?.fornecedor_id || '',
+      fornecedores: [],
     },
   })
 
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'fornecedores',
+  })
+
+  useEffect(() => {
+    const fetchAllFornecedores = async () => {
+      try {
+        const res = await pb.collection('fornecedores').getFullList({ sort: 'nome' })
+        setFornecedores(res)
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    fetchAllFornecedores()
+  }, [])
+
+  useEffect(() => {
+    const loadRelations = async () => {
+      if (isEditing && defaultValues?.code) {
+        try {
+          const item = await pb
+            .collection('itens')
+            .getFirstListItem(`sku = "${defaultValues.code}"`)
+          if (item) {
+            const rels = await pb.collection('item_fornecedores').getFullList({
+              filter: `item_id = "${item.id}"`,
+            })
+            if (rels.length > 0) {
+              form.setValue(
+                'fornecedores',
+                rels.map((r) => ({
+                  fornecedor_id: r.fornecedor_id,
+                  observacao: r.observacao,
+                })),
+              )
+            }
+          }
+        } catch (e) {
+          console.error('Relations not found or error', e)
+        }
+      }
+      setIsLoadingRels(false)
+    }
+    loadRelations()
+  }, [isEditing, defaultValues?.code, form])
+
+  const handleFormSubmit = async (data: FormValues) => {
+    // Keep legacy field gracefully in sync with first item
+    data.fornecedor_id =
+      data.fornecedores && data.fornecedores.length > 0 ? data.fornecedores[0].fornecedor_id : ''
+
+    try {
+      await onSubmit(data)
+
+      let item = null
+      for (let i = 0; i < 3; i++) {
+        try {
+          item = await pb.collection('itens').getFirstListItem(`sku = "${data.code}"`)
+          if (item) break
+        } catch (e) {
+          await new Promise((r) => setTimeout(r, 500))
+        }
+      }
+
+      if (item) {
+        const currentFornecedores = data.fornecedores || []
+        const existing = await pb.collection('item_fornecedores').getFullList({
+          filter: `item_id = "${item.id}"`,
+        })
+
+        const currentIds = currentFornecedores.map((f) => f.fornecedor_id)
+        for (const rel of existing) {
+          if (!currentIds.includes(rel.fornecedor_id)) {
+            await pb.collection('item_fornecedores').delete(rel.id)
+          }
+        }
+
+        for (const f of currentFornecedores) {
+          const rel = existing.find((e) => e.fornecedor_id === f.fornecedor_id)
+          if (rel) {
+            if (rel.observacao !== f.observacao) {
+              await pb.collection('item_fornecedores').update(rel.id, {
+                observacao: f.observacao || '',
+              })
+            }
+          } else {
+            await pb.collection('item_fornecedores').create({
+              item_id: item.id,
+              fornecedor_id: f.fornecedor_id,
+              observacao: f.observacao || '',
+            })
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error saving item relations:', err)
+    }
+  }
+
+  const isSubmitting = form.formState.isSubmitting
+
+  if (isLoadingRels) {
+    return <div className="p-4 text-center text-sm text-muted-foreground">Carregando dados...</div>
+  }
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="code"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Código do Item</FormLabel>
+                <FormLabel>Código do Item (SKU)</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -163,90 +275,119 @@ export function ItemForm({
           />
         </div>
 
-        <div className="space-y-3 border p-4 rounded-md bg-muted/20">
-          <FormField
-            control={form.control}
-            name="fornecedor_id"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Fornecedor (Opcional)</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className={cn(
-                          'w-full justify-between font-normal',
-                          !field.value && 'text-muted-foreground',
-                        )}
-                      >
-                        {field.value
-                          ? fornecedores.find((f) => f.id === field.value)?.nome ||
-                            'Fornecedor selecionado'
-                          : 'Selecione um fornecedor'}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="p-0"
-                    align="start"
-                    style={{ width: 'var(--radix-popover-trigger-width)' }}
-                  >
-                    <Command shouldFilter={false}>
-                      <CommandInput
-                        placeholder="Buscar fornecedor..."
-                        value={searchFornecedor}
-                        onValueChange={setSearchFornecedor}
-                      />
-                      <CommandList>
-                        {fornecedores.length === 0 && searchFornecedor ? (
-                          <div className="py-6 text-center text-sm text-muted-foreground">
-                            Nenhum resultado encontrado.
-                          </div>
-                        ) : null}
-                        <CommandGroup>
-                          <CommandItem
-                            value="none"
-                            onSelect={() => {
-                              form.setValue('fornecedor_id', '')
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                'mr-2 h-4 w-4',
-                                !field.value ? 'opacity-100' : 'opacity-0',
-                              )}
-                            />
-                            Nenhum
-                          </CommandItem>
-                          {fornecedores.map((f) => (
-                            <CommandItem
-                              key={f.id}
-                              value={f.nome}
-                              onSelect={() => {
-                                form.setValue('fornecedor_id', f.id)
-                              }}
-                            >
-                              <Check
+        <div className="space-y-4 border p-4 rounded-md bg-muted/10">
+          <div className="flex items-center justify-between">
+            <FormLabel className="text-base font-semibold">Fornecedores do Item</FormLabel>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => append({ fornecedor_id: '', observacao: '' })}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar Fornecedor
+            </Button>
+          </div>
+
+          {(form.formState.errors.fornecedores?.root?.message ||
+            form.formState.errors.fornecedores?.message) && (
+            <p className="text-sm font-medium text-destructive">
+              {form.formState.errors.fornecedores.root?.message ||
+                form.formState.errors.fornecedores.message}
+            </p>
+          )}
+
+          {fields.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-2">
+              Nenhum fornecedor vinculado a este item.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {fields.map((field, index) => (
+                <div key={field.id} className="flex gap-4 items-start">
+                  <FormField
+                    control={form.control}
+                    name={`fornecedores.${index}.fornecedor_id`}
+                    render={({ field: f }) => (
+                      <FormItem className="flex-1">
+                        {index === 0 && <FormLabel>Fornecedor</FormLabel>}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
                                 className={cn(
-                                  'mr-2 h-4 w-4',
-                                  f.id === field.value ? 'opacity-100' : 'opacity-0',
+                                  'w-full justify-between font-normal',
+                                  !f.value && 'text-muted-foreground',
                                 )}
-                              />
-                              {f.nome}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                              >
+                                {f.value
+                                  ? fornecedores.find((forn) => forn.id === f.value)?.nome ||
+                                    'Fornecedor selecionado'
+                                  : 'Selecione um fornecedor'}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="p-0 w-[300px]" align="start">
+                            <Command>
+                              <CommandInput placeholder="Buscar fornecedor..." />
+                              <CommandList>
+                                <CommandEmpty>Nenhum resultado.</CommandEmpty>
+                                <CommandGroup>
+                                  {fornecedores.map((forn) => (
+                                    <CommandItem
+                                      key={forn.id}
+                                      value={forn.nome}
+                                      onSelect={() => f.onChange(forn.id)}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          'mr-2 h-4 w-4',
+                                          forn.id === f.value ? 'opacity-100' : 'opacity-0',
+                                        )}
+                                      />
+                                      {forn.nome}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name={`fornecedores.${index}.observacao`}
+                    render={({ field: f }) => (
+                      <FormItem className="flex-1">
+                        {index === 0 && <FormLabel>Observação (Opcional)</FormLabel>}
+                        <FormControl>
+                          <Input placeholder="Ex: mais barato, entrega rápida" {...f} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={cn('text-destructive shrink-0', index === 0 ? 'mt-8' : 'mt-2')}
+                    onClick={() => remove(index)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -255,7 +396,7 @@ export function ItemForm({
             name="costPrice"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Valor de Custo (R$)</FormLabel>
+                <FormLabel>Valor de Custo Unitário (R$)</FormLabel>
                 <FormControl>
                   <Input type="number" step="0.01" {...field} />
                 </FormControl>
@@ -279,10 +420,12 @@ export function ItemForm({
         </div>
 
         <div className="flex justify-end gap-2 pt-4">
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button type="submit">Salvar</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Salvando...' : 'Salvar'}
+          </Button>
         </div>
       </form>
     </Form>

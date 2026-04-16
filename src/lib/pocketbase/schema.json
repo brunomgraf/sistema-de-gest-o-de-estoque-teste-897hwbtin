@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-16T20:22:10.496Z",
+  "generatedAt": "2026-04-16T20:27:06.776Z",
   "collections": [
     {
       "name": "users",
@@ -118,6 +118,12 @@
           "required": false,
           "system": false,
           "collectionRef": "fornecedores"
+        },
+        {
+          "name": "foto",
+          "type": "file",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_itens_sku ON itens (sku)"]

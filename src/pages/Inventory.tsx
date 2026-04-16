@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Image as ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dialog'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { formatCurrency } from '@/lib/format'
 import { ItemStatusBadge } from '@/components/ItemStatusBadge'
 import { ItemForm } from '@/components/forms/ItemForm'
@@ -50,6 +51,9 @@ export default function Inventory() {
           currentQuantity: i.quantidade_atual,
           minQuantity: i.quantidade_minima,
           costPrice: i.valor_unitario,
+          foto: i.foto,
+          collectionId: i.collectionId,
+          collectionName: i.collectionName,
         })),
       )
     } catch (e) {
@@ -86,7 +90,7 @@ export default function Inventory() {
 
   const handleAddItem = async (data: any) => {
     try {
-      await pb.collection('itens').create({
+      const payload: any = {
         nome: data.name,
         sku: data.code,
         quantidade_atual: data.currentQuantity || 0,
@@ -94,7 +98,13 @@ export default function Inventory() {
         valor_unitario: data.costPrice || 0,
         status_critico: (data.currentQuantity || 0) <= (data.minQuantity || 0),
         fornecedor_id: data.fornecedor_id || null,
-      })
+      }
+
+      if (data.foto !== undefined) {
+        payload.foto = data.foto
+      }
+
+      await pb.collection('itens').create(payload)
       setOpen(false)
     } catch (e) {
       console.error(e)
@@ -158,6 +168,7 @@ export default function Inventory() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              <TableHead className="w-[60px]">Imagem</TableHead>
               <TableHead className="w-[100px]">Status</TableHead>
               <TableHead>Código</TableHead>
               <TableHead>Nome</TableHead>
@@ -169,7 +180,7 @@ export default function Inventory() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24">
+                <TableCell colSpan={7} className="h-24">
                   <div className="flex flex-col gap-2 w-full px-4">
                     <Skeleton className="h-8 w-full" />
                     <Skeleton className="h-8 w-full" />
@@ -179,7 +190,7 @@ export default function Inventory() {
               </TableRow>
             ) : filteredItems.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                   Nenhum item encontrado.
                 </TableCell>
               </TableRow>
@@ -190,6 +201,22 @@ export default function Inventory() {
                   className="cursor-pointer hover:bg-slate-50 transition-colors"
                   onClick={() => navigate(`/estoque/${item.id}`)}
                 >
+                  <TableCell>
+                    <Avatar className="h-10 w-10 rounded-md border">
+                      <AvatarImage
+                        src={
+                          item.foto
+                            ? pb.files.getUrl(item, item.foto, { thumb: '100x100' })
+                            : undefined
+                        }
+                        alt={item.name}
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="rounded-md bg-muted">
+                        <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                      </AvatarFallback>
+                    </Avatar>
+                  </TableCell>
                   <TableCell>
                     <ItemStatusBadge item={item} />
                   </TableCell>

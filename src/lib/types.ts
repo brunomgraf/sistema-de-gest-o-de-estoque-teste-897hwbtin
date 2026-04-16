@@ -42,6 +42,9 @@ export interface Item {
   costPrice: number
   pdfUrl?: string
   shelfLocation?: string
+  foto?: string
+  collectionId?: string
+  collectionName?: string
 }
 
 export type MovementType = 'in' | 'out' | 'adjust'

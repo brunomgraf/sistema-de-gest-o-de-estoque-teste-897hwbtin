@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Check, ChevronsUpDown, Plus, Trash2 } from 'lucide-react'
+import { Check, ChevronsUpDown, Plus, Trash2, ImagePlus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -35,6 +35,7 @@ const schema = z
     pdfUrl: z.string().url('URL inválida').optional().or(z.literal('')),
     shelfLocation: z.string().optional().or(z.literal('')),
     fornecedor_id: z.string().optional().or(z.literal('')),
+    foto: z.any().optional(),
     fornecedores: z
       .array(
         z.object({
@@ -72,6 +73,7 @@ export function ItemForm({
 }) {
   const [fornecedores, setFornecedores] = useState<any[]>([])
   const [isLoadingRels, setIsLoadingRels] = useState(isEditing)
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>()
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -113,6 +115,9 @@ export function ItemForm({
             .collection('itens')
             .getFirstListItem(`sku = "${defaultValues.code}"`)
           if (item) {
+            if (item.foto) {
+              setPreviewUrl(pb.files.getUrl(item, item.foto, { thumb: '100x100' }))
+            }
             const rels = await pb.collection('item_fornecedores').getFullList({
               filter: `item_id = "${item.id}"`,
             })
@@ -219,6 +224,57 @@ export function ItemForm({
                 <FormLabel>Nome</FormLabel>
                 <FormControl>
                   <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="foto"
+            render={({ field: { value, onChange, ...field } }) => (
+              <FormItem className="col-span-2">
+                <FormLabel>Imagem do Produto</FormLabel>
+                <FormControl>
+                  <div className="flex items-center gap-4">
+                    {previewUrl ? (
+                      <div className="relative w-16 h-16 rounded-md overflow-hidden border shrink-0">
+                        <img
+                          src={previewUrl}
+                          alt="Preview"
+                          className="object-cover w-full h-full"
+                        />
+                        <button
+                          type="button"
+                          className="absolute top-0 right-0 bg-destructive text-destructive-foreground p-0.5 rounded-bl-md hover:bg-destructive/90 transition-colors"
+                          onClick={() => {
+                            setPreviewUrl(undefined)
+                            onChange('')
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-md border-2 border-dashed flex items-center justify-center bg-muted text-muted-foreground shrink-0">
+                        <ImagePlus className="w-6 h-6" />
+                      </div>
+                    )}
+                    <Input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          onChange(file)
+                          setPreviewUrl(URL.createObjectURL(file))
+                        }
+                      }}
+                      {...field}
+                      value={undefined}
+                      className="flex-1 cursor-pointer file:cursor-pointer"
+                    />
+                  </div>
                 </FormControl>
                 <FormMessage />
               </FormItem>

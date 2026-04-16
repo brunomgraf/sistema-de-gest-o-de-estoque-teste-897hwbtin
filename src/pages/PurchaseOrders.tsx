@@ -19,7 +19,24 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { FileCheck, Search, FileText, AlertTriangle, Printer, Check, X } from 'lucide-react'
+import {
+  FileCheck,
+  Search,
+  FileText,
+  AlertTriangle,
+  Printer,
+  Check,
+  X,
+  MoreHorizontal,
+} from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { format } from 'date-fns'
@@ -263,10 +280,33 @@ export default function PurchaseOrders() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedPoId(po.id)}>
-                      <FileText className="h-4 w-4 mr-2" />
-                      Ver Documento
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Abrir menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => setSelectedPoId(po.id)}>
+                          <FileText className="mr-2 h-4 w-4" /> Ver Documento
+                        </DropdownMenuItem>
+                        {po.status === 'pendente' && canEditStatus && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(po.id, 'entregue')}>
+                              <Check className="mr-2 h-4 w-4 text-green-600" /> Marcar como Entregue
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleUpdateStatus(po.id, 'cancelado')}
+                            >
+                              <X className="mr-2 h-4 w-4 text-red-600" /> Cancelar OC
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))

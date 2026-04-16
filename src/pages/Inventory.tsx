@@ -23,6 +23,7 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { formatCurrency } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { ItemStatusBadge } from '@/components/ItemStatusBadge'
 import { ItemForm } from '@/components/forms/ItemForm'
 import pb from '@/lib/pocketbase/client'
@@ -33,6 +34,7 @@ export default function Inventory() {
   const filter = searchParams.get('filter') || 'todos'
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
+  const [previewItem, setPreviewItem] = useState<any | null>(null)
   const navigate = useNavigate()
 
   const [items, setItems] = useState<any[]>([])
@@ -202,20 +204,35 @@ export default function Inventory() {
                   onClick={() => navigate(`/estoque/${item.id}`)}
                 >
                   <TableCell>
-                    <Avatar className="h-10 w-10 rounded-md border">
-                      <AvatarImage
-                        src={
-                          item.foto
-                            ? pb.files.getUrl(item, item.foto, { thumb: '100x100' })
-                            : undefined
+                    <div
+                      onClick={(e) => {
+                        if (item.foto) {
+                          e.stopPropagation()
+                          setPreviewItem(item)
                         }
-                        alt={item.name}
-                        className="object-cover"
-                      />
-                      <AvatarFallback className="rounded-md bg-muted">
-                        <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                      </AvatarFallback>
-                    </Avatar>
+                      }}
+                      className={cn(
+                        'inline-block rounded-md relative',
+                        item.foto &&
+                          'cursor-pointer hover:opacity-80 transition-opacity ring-offset-background hover:ring-2 hover:ring-primary/50',
+                      )}
+                      title={item.foto ? 'Clique para ampliar' : 'Sem imagem'}
+                    >
+                      <Avatar className="h-10 w-10 rounded-md border">
+                        <AvatarImage
+                          src={
+                            item.foto
+                              ? pb.files.getUrl(item, item.foto, { thumb: '100x100' })
+                              : undefined
+                          }
+                          alt={item.name}
+                          className="object-cover"
+                        />
+                        <AvatarFallback className="rounded-md bg-muted">
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <ItemStatusBadge item={item} />
@@ -233,6 +250,33 @@ export default function Inventory() {
           </TableBody>
         </Table>
       </Card>
+
+      <Dialog open={!!previewItem} onOpenChange={(open) => !open && setPreviewItem(null)}>
+        <DialogContent className="sm:max-w-2xl bg-background/95 backdrop-blur-sm border-muted">
+          <DialogHeader>
+            <DialogTitle className="text-xl">{previewItem?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center p-2 sm:p-6">
+            {previewItem?.foto ? (
+              <div className="relative w-full max-w-lg flex items-center justify-center overflow-hidden rounded-md border bg-muted/30 p-2">
+                <img
+                  src={pb.files.getUrl(previewItem, previewItem.foto)}
+                  alt={previewItem?.name}
+                  className="max-h-[60vh] w-auto object-contain rounded-sm"
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-64 text-muted-foreground bg-muted/30 w-full rounded-md border">
+                <ImageIcon className="h-12 w-12 mb-4 opacity-20" />
+                <p>Nenhuma imagem disponível</p>
+              </div>
+            )}
+            <p className="mt-6 text-sm font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">
+              SKU: {previewItem?.code}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

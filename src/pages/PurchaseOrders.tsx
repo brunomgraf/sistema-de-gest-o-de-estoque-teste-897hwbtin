@@ -19,16 +19,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  FileCheck,
-  Search,
-  FileText,
-  AlertTriangle,
-  Printer,
-  Check,
-  X,
-  MoreHorizontal,
-} from 'lucide-react'
+import { FileCheck, Search, FileText, AlertTriangle, Printer, MoreHorizontal } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,13 +33,8 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { format } from 'date-fns'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
-import { useAuth } from '@/hooks/use-auth'
-import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export default function PurchaseOrders() {
-  const { user } = useAuth()
-  const canEditStatus = user?.role === 'admin' || user?.role === 'gestor'
-
   const [searchParams, setSearchParams] = useSearchParams()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null)
@@ -58,7 +44,6 @@ export default function PurchaseOrders() {
   const [items, setItems] = useState<any[]>([])
   const [aprovacoes, setAprovacoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
   const [approvalFormOpen, setApprovalFormOpen] = useState(false)
   const [approvalData, setApprovalData] = useState({ aprovador_nome: '', observacoes: '' })
@@ -187,20 +172,6 @@ export default function PurchaseOrders() {
     }
   }
 
-  const handleUpdateStatus = async (id: string, newStatus: string) => {
-    if (!window.confirm(`Deseja alterar o status desta OC para ${newStatus.toUpperCase()}?`)) return
-    setIsUpdatingStatus(true)
-    try {
-      await pb.collection('ordens_compra').update(id, { status: newStatus })
-      toast.success('Ordem de Compra atualizada com sucesso!')
-    } catch (e) {
-      console.error(e)
-      toast.error('Erro ao atualizar OC: ' + getErrorMessage(e))
-    } finally {
-      setIsUpdatingStatus(false)
-    }
-  }
-
   return (
     <div className="flex-1 space-y-4 p-8 pt-6 relative">
       <div className="print:hidden flex items-center justify-between space-y-2">
@@ -292,19 +263,6 @@ export default function PurchaseOrders() {
                         <DropdownMenuItem onClick={() => setSelectedPoId(po.id)}>
                           <FileText className="mr-2 h-4 w-4" /> Ver Documento
                         </DropdownMenuItem>
-                        {po.status === 'pendente' && canEditStatus && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(po.id, 'entregue')}>
-                              <Check className="mr-2 h-4 w-4 text-green-600" /> Marcar como Entregue
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleUpdateStatus(po.id, 'cancelado')}
-                            >
-                              <X className="mr-2 h-4 w-4 text-red-600" /> Cancelar OC
-                            </DropdownMenuItem>
-                          </>
-                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -337,28 +295,6 @@ export default function PurchaseOrders() {
                       ? 'Cancelado'
                       : 'Entregue'}
                 </Badge>
-                {selectedPo?.status === 'pendente' && canEditStatus && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="ml-4 print:hidden border-green-600 text-green-600 hover:bg-green-50"
-                    onClick={() => handleUpdateStatus(selectedPo.id, 'entregue')}
-                    disabled={isUpdatingStatus}
-                  >
-                    <Check className="w-4 h-4 mr-2" /> Marcar como Entregue
-                  </Button>
-                )}
-                {selectedPo?.status === 'pendente' && canEditStatus && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="print:hidden border-red-600 text-red-600 hover:bg-red-50"
-                    onClick={() => handleUpdateStatus(selectedPo.id, 'cancelado')}
-                    disabled={isUpdatingStatus}
-                  >
-                    <X className="w-4 h-4 mr-2" /> Cancelar OC
-                  </Button>
-                )}
               </span>
               <Button onClick={handlePrint} variant="outline" className="mr-6 print:hidden">
                 <Printer className="w-4 h-4 mr-2" /> Imprimir Ordem de Compra

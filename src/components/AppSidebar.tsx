@@ -9,6 +9,7 @@ import {
   FileCheck,
   LogOut,
   PackageMinus,
+  AlertTriangle,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -32,6 +33,7 @@ const MENU_ITEMS = [
   { title: 'Recebimento', url: '/recebimento', icon: ArrowDownToLine },
   { title: 'Fornecedores', url: '/fornecedores', icon: Truck },
   { title: 'Relatórios', url: '/relatorios', icon: FileText },
+  { title: 'Divergências', url: '/relatorios/divergencias', icon: AlertTriangle },
 ]
 
 export function AppSidebar() {

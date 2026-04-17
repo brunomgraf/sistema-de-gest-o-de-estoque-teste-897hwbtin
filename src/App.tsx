@@ -17,6 +17,7 @@ import Inventory from './pages/Inventory'
 import ItemDetails from './pages/ItemDetails'
 import Suppliers from './pages/Suppliers'
 import Reports from './pages/Reports'
+import Discrepancies from './pages/reports/Discrepancies'
 import Purchases from './pages/Purchases'
 import PurchaseOrders from './pages/PurchaseOrders'
 import Receiving from './pages/Receiving'
@@ -40,6 +41,7 @@ const AppContent = () => {
           <Route path="/saida-estoque" element={<StockOutPage />} />
           <Route path="/fornecedores" element={<Suppliers />} />
           <Route path="/relatorios" element={<Reports />} />
+          <Route path="/relatorios/divergencias" element={<Discrepancies />} />
         </Route>
       </Route>
       <Route path="*" element={<NotFound />} />

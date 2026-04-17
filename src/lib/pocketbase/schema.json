@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-16T20:47:30.474Z",
+  "generatedAt": "2026-04-17T12:24:34.354Z",
   "collections": [
     {
       "name": "users",
@@ -381,9 +381,19 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "item_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "itens"
         }
       ],
-      "indexes": ["CREATE INDEX idx_recebimento_oc ON recebimento (ordem_compra_id)"]
+      "indexes": [
+        "CREATE INDEX idx_recebimento_oc ON recebimento (ordem_compra_id)",
+        "CREATE INDEX `idx_recebimento_item` ON `recebimento` (item_id)"
+      ]
     },
     {
       "name": "movimentacoes",

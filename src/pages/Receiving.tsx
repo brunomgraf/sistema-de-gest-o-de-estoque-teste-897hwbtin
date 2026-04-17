@@ -16,7 +16,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { ArrowDownToLine, CheckCircle2, Eye, Loader2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { ArrowDownToLine, CheckCircle2, Eye, Loader2, AlertTriangle } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { format } from 'date-fns'
@@ -28,10 +29,15 @@ import { getErrorMessage } from '@/lib/pocketbase/errors'
 export default function Receiving() {
   const { user } = useAuth()
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null)
+
+  // States for itemized receiving
+  const [receivingPoId, setReceivingPoId] = useState<string | null>(null)
+  const [receivedQuantities, setReceivedQuantities] = useState<Record<string, number>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   const [enrichedPOs, setEnrichedPOs] = useState<any[]>([])
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [receivingId, setReceivingId] = useState<string | null>(null)
 
   const loadData = async () => {
     try {
@@ -84,31 +90,86 @@ export default function Receiving() {
   useRealtime('itens_ordem_compra', () => {
     loadData()
   })
+  useRealtime('itens', () => {
+    loadData()
+  })
 
-  const receivePurchaseOrder = async (id: string) => {
-    if (!user) {
-      toast.error('Usuário não autenticado.')
-      return
-    }
+  const openReceiveModal = (po: any) => {
+    setReceivingPoId(po.id)
+    const initial: Record<string, number> = {}
+    po.items.forEach((it: any) => {
+      initial[it.itemId] = it.quantity // Default to expected quantity
+    })
+    setReceivedQuantities(initial)
+  }
 
+  const submitReception = async () => {
+    if (!user || !receivingPoId) return
+
+    const po = enrichedPOs.find((p) => p.id === receivingPoId)
+    if (!po) return
+
+    setIsSubmitting(true)
     try {
-      setReceivingId(id)
-      const po = enrichedPOs.find((p) => p.id === id)
-      if (!po) throw new Error('Ordem de compra não encontrada.')
+      for (const it of po.items) {
+        const recQty = receivedQuantities[it.itemId] || 0
+        if (recQty > 0) {
+          const itemObj = items.find((i) => i.id === it.itemId)
+          if (!itemObj) continue
 
-      await pb.collection('ordens_compra').update(id, { status: 'entregue' })
+          const newQty = (itemObj.quantidade_atual || 0) + recQty
 
-      toast.success('Ordem de compra recebida com sucesso! Estoque atualizado.')
+          // Update stock
+          await pb.collection('itens').update(it.itemId, { quantidade_atual: newQty })
+
+          // Create movement
+          await pb.collection('movimentacoes').create({
+            item_id: it.itemId,
+            tipo_movimento: 'entrada',
+            quantidade: recQty,
+            data_movimento: new Date().toISOString(),
+            motivo: `Recebimento OC ${po.number}`,
+            usuario_id: user.id,
+          })
+
+          // Create itemized receiving record
+          await pb.collection('recebimento').create({
+            ordem_compra_id: po.id,
+            item_id: it.itemId,
+            quantidade_recebida: recQty,
+            data_recebimento: new Date().toISOString(),
+            status_verificacao: recQty === it.quantity ? 'ok' : 'divergente',
+          })
+        }
+      }
+
+      // Update PO status
+      await pb.collection('ordens_compra').update(po.id, { status: 'entregue' })
+
+      toast.success('Recebimento concluído e estoque atualizado!')
+      setReceivingPoId(null)
     } catch (e: any) {
-      toast.error('Erro ao receber ordem de compra: ' + getErrorMessage(e))
+      toast.error('Erro ao finalizar recebimento: ' + getErrorMessage(e))
     } finally {
-      setReceivingId(null)
+      setIsSubmitting(false)
     }
   }
 
   const selectedPo = useMemo(() => {
     return enrichedPOs.find((p) => p.id === selectedPoId) || null
   }, [enrichedPOs, selectedPoId])
+
+  const receivingPo = useMemo(() => {
+    return enrichedPOs.find((p) => p.id === receivingPoId) || null
+  }, [enrichedPOs, receivingPoId])
+
+  const hasDivergences = receivingPo?.items.some((it: any) => {
+    const recQty = receivedQuantities[it.itemId] ?? 0
+    return recQty !== it.quantity
+  })
+
+  const isZeroReceived =
+    receivingPo?.items.every((it: any) => (receivedQuantities[it.itemId] || 0) === 0) ?? true
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -175,17 +236,9 @@ export default function Receiving() {
                         Ver OC
                       </Button>
                       {po.status === 'pendente' && (
-                        <Button
-                          size="sm"
-                          onClick={() => receivePurchaseOrder(po.id)}
-                          disabled={receivingId === po.id}
-                        >
-                          {receivingId === po.id ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                          )}
-                          Confirmar
+                        <Button size="sm" onClick={() => openReceiveModal(po)}>
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Receber
                         </Button>
                       )}
                     </div>
@@ -197,6 +250,7 @@ export default function Receiving() {
         </Table>
       </div>
 
+      {/* View PO Details Dialog */}
       <Dialog open={!!selectedPoId} onOpenChange={(open) => !open && setSelectedPoId(null)}>
         <DialogContent className="max-w-4xl bg-slate-50">
           <DialogHeader>
@@ -253,7 +307,7 @@ export default function Receiving() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedPo.items.map((it, idx) => {
+                    {selectedPo.items.map((it: any, idx: number) => {
                       const itemObj = items.find((i) => i.id === it.itemId)
                       return (
                         <TableRow key={idx} className="border-slate-100 hover:bg-slate-50/50">
@@ -288,6 +342,128 @@ export default function Receiving() {
                   </Badge>
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Itemized Reception Validation Dialog */}
+      <Dialog open={!!receivingPoId} onOpenChange={(open) => !open && setReceivingPoId(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Confirmar Recebimento</DialogTitle>
+            <DialogDescription>
+              Verifique as quantidades físicas recebidas de cada item. O estoque será atualizado com
+              estes valores.
+            </DialogDescription>
+          </DialogHeader>
+
+          {receivingPo && (
+            <div className="space-y-6">
+              <div className="bg-slate-50 p-4 rounded-md border flex justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 font-medium">Ordem de Compra</p>
+                  <p className="font-bold text-lg">{receivingPo.number}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-slate-500 font-medium">Fornecedor</p>
+                  <p className="font-bold">{receivingPo.supplierName}</p>
+                </div>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead className="text-right">Qtd. Solicitada</TableHead>
+                    <TableHead className="text-right w-40">Qtd. Recebida</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {receivingPo.items.map((it: any) => {
+                    const itemObj = items.find((i) => i.id === it.itemId)
+                    const recQty = receivedQuantities[it.itemId] ?? 0
+                    const diff = recQty - it.quantity
+                    return (
+                      <TableRow key={it.itemId}>
+                        <TableCell className="font-medium">
+                          {itemObj?.nome || 'Item desconhecido'}
+                        </TableCell>
+                        <TableCell className="text-slate-500">{itemObj?.sku || '-'}</TableCell>
+                        <TableCell className="text-right">{it.quantity}</TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            min="0"
+                            className="w-24 ml-auto text-right"
+                            value={recQty.toString()}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setReceivedQuantities((prev) => ({
+                                ...prev,
+                                [it.itemId]: val === '' ? 0 : parseInt(val, 10),
+                              }))
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {diff === 0 ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-green-50 text-green-700 border-green-200"
+                            >
+                              OK
+                            </Badge>
+                          ) : diff > 0 ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-blue-50 text-blue-700 border-blue-200"
+                            >
+                              Excedente (+{diff})
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="bg-red-50 text-red-700 border-red-200"
+                            >
+                              Faltante ({diff})
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+
+              {hasDivergences && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-md flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-bold">Atenção: Quantidades divergentes</p>
+                    <p>
+                      Existem itens com quantidades diferentes do solicitado. Confirme se as
+                      informações estão corretas antes de finalizar.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setReceivingPoId(null)}
+                  disabled={isSubmitting}
+                >
+                  Cancelar
+                </Button>
+                <Button onClick={submitReception} disabled={isSubmitting || isZeroReceived}>
+                  {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Finalizar Recebimento
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

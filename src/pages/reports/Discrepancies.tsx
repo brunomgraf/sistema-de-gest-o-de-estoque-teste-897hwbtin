@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns'
-import { AlertTriangle, Search, FileText } from 'lucide-react'
+import { AlertTriangle, Search, FileText, Printer, FileSpreadsheet } from 'lucide-react'
 import { DateRange } from 'react-day-picker'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useAuth } from '@/hooks/use-auth'
 import { Navigate } from 'react-router-dom'
 
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -50,6 +51,7 @@ type DiscrepancyItem = {
   fornecedor_id: string
   fornecedor_nome: string
   item_nome: string
+  item_sku: string
   data_pedido: string
   quantidade_solicitada: number
   quantidade_recebida: number
@@ -108,10 +110,11 @@ export default function Discrepancies() {
             fornecedor_id: oc.fornecedor_id,
             fornecedor_nome: oc.expand?.fornecedor_id?.nome || 'Desconhecido',
             item_nome: ioc.expand?.item_id?.nome || 'Desconhecido',
+            item_sku: ioc.expand?.item_id?.sku || 'N/A',
             data_pedido: oc.data_pedido,
             quantidade_solicitada: requestedQty,
             quantidade_recebida: receivedQty,
-            divergencia: receivedQty - requestedQty,
+            divergencia: requestedQty - receivedQty,
             historico_recebimento: iocRecs
               .map((r) => ({
                 id: r.id,
@@ -164,20 +167,140 @@ export default function Discrepancies() {
     })
   }, [items, dateRange, supplierFilter, ocSearch])
 
+  const handleExportExcel = () => {
+    const headers = [
+      'Data do Pedido',
+      'Número da OC',
+      'Fornecedor',
+      'SKU',
+      'Item',
+      'Qtd. Solicitada',
+      'Qtd. Recebida',
+      'Divergência',
+    ]
+    const rows = filteredItems.map((item) => [
+      format(parseISO(item.data_pedido), 'dd/MM/yyyy'),
+      item.numero_oc,
+      `"${item.fornecedor_nome}"`,
+      item.item_sku,
+      `"${item.item_nome}"`,
+      item.quantidade_solicitada,
+      item.quantidade_recebida,
+      item.divergencia,
+    ])
+
+    const csvContent = [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n')
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `divergencias_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleExportPDF = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Relatório de Divergências - Oficina Graf</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; color: #111; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+            .brand { font-size: 24px; font-weight: bold; }
+            .title { font-size: 18px; margin-top: 10px; color: #444; }
+            .meta { font-size: 12px; color: #666; margin-top: 5px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f4f4f4; font-weight: bold; }
+            .text-right { text-align: right; }
+            .danger { color: #d9534f; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="brand">Oficina Graf</div>
+            <div class="title">Relatório de Divergências</div>
+            <div class="meta">Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Data Pedido</th>
+                <th>Nº OC</th>
+                <th>Fornecedor</th>
+                <th>SKU</th>
+                <th>Item</th>
+                <th class="text-right">Qtd. Solicitada</th>
+                <th class="text-right">Qtd. Recebida</th>
+                <th class="text-right">Divergência</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredItems
+                .map(
+                  (item) => `
+                <tr>
+                  <td>${format(parseISO(item.data_pedido), 'dd/MM/yyyy')}</td>
+                  <td>${item.numero_oc}</td>
+                  <td>${item.fornecedor_nome}</td>
+                  <td>${item.item_sku}</td>
+                  <td>${item.item_nome}</td>
+                  <td class="text-right">${item.quantidade_solicitada}</td>
+                  <td class="text-right">${item.quantidade_recebida}</td>
+                  <td class="text-right danger">${item.divergencia}</td>
+                </tr>
+              `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `
+
+    printWindow.document.write(html)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => {
+      printWindow.print()
+    }, 250)
+  }
+
   if (user?.role !== 'admin' && user?.role !== 'gestor') {
     return <Navigate to="/" replace />
   }
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-          <AlertTriangle className="h-8 w-8 text-destructive" />
-          Relatório de Divergências
-        </h1>
-        <p className="text-muted-foreground">
-          Acompanhe itens com quantidade recebida menor que a solicitada em ordens de compra.
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
+            <AlertTriangle className="h-8 w-8 text-destructive" />
+            Relatório de Divergências
+          </h1>
+          <p className="text-muted-foreground">
+            Acompanhe itens com quantidade recebida menor que a solicitada em ordens de compra.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportExcel}
+            disabled={filteredItems.length === 0 || loading}
+          >
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Exportar Excel
+          </Button>
+          <Button onClick={handleExportPDF} disabled={filteredItems.length === 0 || loading}>
+            <Printer className="mr-2 h-4 w-4" />
+            Exportar PDF
+          </Button>
+        </div>
       </div>
 
       <Card>

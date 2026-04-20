@@ -16,6 +16,7 @@ import Dashboard from './pages/Dashboard'
 import Inventory from './pages/Inventory'
 import ItemDetails from './pages/ItemDetails'
 import Suppliers from './pages/Suppliers'
+import SupplierProfile from './pages/SupplierProfile'
 import Reports from './pages/Reports'
 import Discrepancies from './pages/reports/Discrepancies'
 import Purchases from './pages/Purchases'
@@ -40,6 +41,7 @@ const AppContent = () => {
           <Route path="/recebimento" element={<Receiving />} />
           <Route path="/saida-estoque" element={<StockOutPage />} />
           <Route path="/fornecedores" element={<Suppliers />} />
+          <Route path="/fornecedores/:id" element={<SupplierProfile />} />
           <Route path="/relatorios" element={<Reports />} />
           <Route path="/relatorios/divergencias" element={<Discrepancies />} />
         </Route>

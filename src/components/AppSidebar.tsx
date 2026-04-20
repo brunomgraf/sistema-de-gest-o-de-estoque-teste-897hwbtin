@@ -31,7 +31,7 @@ const MENU_ITEMS = [
   { title: 'Compras', url: '/compras', icon: ShoppingBag },
   { title: 'Ordens de Compra', url: '/ordens-de-compra', icon: FileCheck },
   { title: 'Recebimento', url: '/recebimento', icon: ArrowDownToLine },
-  { title: 'Fornecedores', url: '/fornecedores', icon: Truck },
+  { title: 'Fornecedores (CRM)', url: '/fornecedores', icon: Truck, roles: ['admin', 'gestor'] },
   { title: 'Relatórios', url: '/relatorios', icon: FileText },
   { title: 'Divergências', url: '/relatorios/divergencias', icon: AlertTriangle },
 ]
@@ -55,7 +55,9 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu className="mt-4 gap-2 px-2">
-              {MENU_ITEMS.map((item) => {
+              {MENU_ITEMS.filter(
+                (item) => !item.roles || item.roles.includes(user?.role || ''),
+              ).map((item) => {
                 const isActive =
                   item.url === '/'
                     ? location.pathname === '/'

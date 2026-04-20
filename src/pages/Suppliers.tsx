@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Pencil } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Pencil, Search, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -17,31 +17,104 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Card } from '@/components/ui/card'
-import { useEffect } from 'react'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Link } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { SupplierForm } from '@/components/forms/SupplierForm'
 import { Skeleton } from '@/components/ui/skeleton'
 
+function PerformanceBadge({ stats }: { stats?: { total: number; onTime: number; late: number } }) {
+  if (!stats || stats.total === 0)
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        Sem dados
+      </Badge>
+    )
+
+  const percent = (stats.onTime / stats.total) * 100
+
+  if (percent > 90) {
+    return (
+      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+        Excelente ({percent.toFixed(0)}%)
+      </Badge>
+    )
+  } else if (percent >= 70) {
+    return (
+      <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+        Regular ({percent.toFixed(0)}%)
+      </Badge>
+    )
+  } else {
+    return (
+      <Badge className="bg-red-500/10 text-red-600 border-red-500/20">
+        Ruim ({percent.toFixed(0)}%)
+      </Badge>
+    )
+  }
+}
+
 export default function Suppliers() {
   const user = pb.authStore.record
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
 
   const [open, setOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<any | null>(null)
 
   const loadData = async () => {
     try {
-      const res = await pb.collection('fornecedores').getFullList({ sort: 'nome' })
+      const [res, resOrders, resReceipts] = await Promise.all([
+        pb.collection('fornecedores').getFullList({ sort: 'nome' }),
+        pb
+          .collection('ordens_compra')
+          .getFullList({ filter: "status = 'entregue' || status = 'recebido'" }),
+        pb.collection('recebimento').getFullList(),
+      ])
+
+      const stats: Record<string, { total: number; onTime: number; late: number }> = {}
+
+      resOrders.forEach((order) => {
+        const supplierId = order.fornecedor_id
+        if (!stats[supplierId]) stats[supplierId] = { total: 0, onTime: 0, late: 0 }
+
+        const expectedDateStr = order.data_entrega_prevista
+        if (!expectedDateStr) return
+
+        stats[supplierId].total++
+
+        const expectedDate = new Date(expectedDateStr)
+        const receipt = resReceipts.find((r) => r.ordem_compra_id === order.id)
+
+        let actualDate = null
+        if (receipt) {
+          actualDate = new Date(receipt.data_recebimento || receipt.created)
+        } else {
+          actualDate = new Date(order.updated)
+        }
+
+        expectedDate.setHours(0, 0, 0, 0)
+        actualDate.setHours(0, 0, 0, 0)
+
+        if (actualDate <= expectedDate) {
+          stats[supplierId].onTime++
+        } else {
+          stats[supplierId].late++
+        }
+      })
+
       setSuppliers(
         res.map((s) => ({
           id: s.id,
           name: s.nome,
-          email: s.email,
-          phone: s.telefone,
-          contact: s.endereco, // Using endereco as contact for now
+          email: s.email || '',
+          phone: s.telefone || '',
+          contact: s.endereco || '',
           leadTime: 0,
+          stats: stats[s.id] || { total: 0, onTime: 0, late: 0 },
         })),
       )
     } catch (e) {
@@ -52,11 +125,22 @@ export default function Suppliers() {
   }
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (user?.role === 'admin' || user?.role === 'gestor') {
+      loadData()
+    }
+  }, [user])
+
   useRealtime('fornecedores', () => {
-    loadData()
+    if (user?.role === 'admin' || user?.role === 'gestor') loadData()
   })
+
+  if (user?.role !== 'admin' && user?.role !== 'gestor') {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        Acesso restrito à gestão ou administração.
+      </div>
+    )
+  }
 
   const addSupplier = async (data: any) => {
     await pb.collection('fornecedores').create({
@@ -76,13 +160,20 @@ export default function Suppliers() {
     })
   }
 
-  const canEdit = user?.role === 'admin' || user?.role === 'gerente'
-  const canAdd = user?.role === 'admin'
+  const filteredSuppliers = suppliers.filter(
+    (s) =>
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.phone?.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+
+  const canEdit = user?.role === 'admin' || user?.role === 'gestor'
+  const canAdd = user?.role === 'admin' || user?.role === 'gestor'
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold tracking-tight">Fornecedores</h2>
+    <div className="space-y-6 pb-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-3xl font-bold tracking-tight">Fornecedores (CRM)</h2>
         {canAdd && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -106,50 +197,80 @@ export default function Suppliers() {
         )}
       </div>
 
-      <Card>
+      <Card className="flex flex-col">
+        <div className="p-4 border-b">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome, email ou telefone..."
+              className="pl-9"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/50">
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
               <TableHead>Razão Social / Nome</TableHead>
               <TableHead>Contato</TableHead>
-              <TableHead>Email</TableHead>
               <TableHead>Telefone</TableHead>
-              <TableHead className="text-right">Lead Time (Dias)</TableHead>
-              {canEdit && <TableHead className="w-[100px] text-right">Ações</TableHead>}
+              <TableHead>Desempenho</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={canEdit ? 6 : 5} className="h-24">
-                  <Skeleton className="h-12 w-full" />
+                <TableCell colSpan={5} className="h-24 text-center">
+                  <div className="flex justify-center">
+                    <Skeleton className="h-8 w-full max-w-md" />
+                  </div>
                 </TableCell>
               </TableRow>
-            ) : suppliers.length === 0 ? (
+            ) : filteredSuppliers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={canEdit ? 6 : 5} className="text-center py-8">
-                  Nenhum fornecedor cadastrado.
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  Nenhum fornecedor encontrado.
                 </TableCell>
               </TableRow>
             ) : (
-              suppliers.map((supplier) => (
-                <TableRow key={supplier.id}>
-                  <TableCell className="font-medium">{supplier.name}</TableCell>
+              filteredSuppliers.map((supplier) => (
+                <TableRow key={supplier.id} className="group">
+                  <TableCell className="font-medium">
+                    <Link
+                      to={`/fornecedores/${supplier.id}`}
+                      className="hover:underline text-primary"
+                    >
+                      {supplier.name}
+                    </Link>
+                    <div className="text-xs text-muted-foreground font-normal">
+                      {supplier.email}
+                    </div>
+                  </TableCell>
                   <TableCell>{supplier.contact}</TableCell>
-                  <TableCell>{supplier.email}</TableCell>
                   <TableCell>{supplier.phone}</TableCell>
-                  <TableCell className="text-right">-</TableCell>
-                  {canEdit && (
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditingSupplier(supplier)}
-                      >
-                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                  <TableCell>
+                    <PerformanceBadge stats={supplier.stats} />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingSupplier(supplier)}
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" asChild>
+                        <Link to={`/fornecedores/${supplier.id}`}>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </Link>
                       </Button>
-                    </TableCell>
-                  )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))
             )}

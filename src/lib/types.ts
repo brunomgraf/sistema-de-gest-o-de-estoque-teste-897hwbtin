@@ -16,6 +16,20 @@ export interface Supplier {
   leadTime: number
 }
 
+export interface FornecedorContato {
+  id: string
+  fornecedor_id: string
+  usuario_id: string
+  data_contato: string
+  tipo: 'email' | 'telefone' | 'reuniao' | 'outros'
+  descricao: string
+  created: string
+  updated: string
+  expand?: {
+    usuario_id?: User
+  }
+}
+
 export type SupplierPreference = 'primary' | 'secondary' | 'tertiary'
 
 export interface ItemFornecedor {

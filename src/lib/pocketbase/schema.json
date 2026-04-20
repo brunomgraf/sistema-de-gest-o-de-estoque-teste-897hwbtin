@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-17T14:22:39.786Z",
+  "generatedAt": "2026-04-20T23:28:52.991Z",
   "collections": [
     {
       "name": "users",
@@ -709,6 +709,70 @@
         "CREATE INDEX idx_item_fornecedores_item ON item_fornecedores (item_id)",
         "CREATE INDEX idx_item_fornecedores_forn ON item_fornecedores (fornecedor_id)",
         "CREATE UNIQUE INDEX idx_item_fornecedores_unique ON item_fornecedores (item_id, fornecedor_id)"
+      ]
+    },
+    {
+      "name": "fornecedor_contatos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.role = 'admin'",
+        "delete": "@request.auth.role = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "fornecedor_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "fornecedores"
+        },
+        {
+          "name": "usuario_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "data_contato",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["email", "telefone", "reuniao", "outros"]
+        },
+        {
+          "name": "descricao",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_fornecedor_contatos_fornecedor ON fornecedor_contatos (fornecedor_id)",
+        "CREATE INDEX idx_fornecedor_contatos_data ON fornecedor_contatos (data_contato DESC)"
       ]
     }
   ]

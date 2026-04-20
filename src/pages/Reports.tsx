@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Download, X, Printer, Search } from 'lucide-react'
+import { Download, X, Printer, Search, Loader2 } from 'lucide-react'
 import { flushSync } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,9 +18,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/format'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
-import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function Reports() {
+  const { user } = useAuth()
+  const canExportAndPrint = user?.role === 'admin' || user?.role === 'gestor'
+
   const [searchParams, setSearchParams] = useSearchParams()
   const filter = searchParams.get('filter')
   const osQuery = searchParams.get('os') || ''
@@ -30,6 +33,9 @@ export default function Reports() {
 
   const [inventoryItems, setInventoryItems] = useState<any[]>([])
   const [printType, setPrintType] = useState<'os' | 'inventory'>('os')
+
+  const [isProcessingPrint, setIsProcessingPrint] = useState(false)
+  const [isProcessingExport, setIsProcessingExport] = useState(false)
 
   const loadData = async () => {
     try {
@@ -106,38 +112,64 @@ export default function Reports() {
     setSearchParams(newParams)
   }
 
-  const handleExport = () => {
-    const csvContent =
-      'data:text/csv;charset=utf-8,Data,Item,Tipo,Quantidade,Motivo,Usuário,Solicitante,OS\n' +
-      filteredMovements
-        .map((m) => {
-          const itemName = m.expand?.item_id?.nome || '-'
-          const userName = m.expand?.usuario_id?.name || '-'
-          return `${formatDate(m.data_movimento)},${itemName},${m.tipo_movimento},${m.quantidade},${m.motivo || ''},${userName},${m.solicitante || ''},${m.ordem_servico || ''}`
-        })
-        .join('\n')
+  const handleExport = async () => {
+    setIsProcessingExport(true)
+    await new Promise((resolve) => setTimeout(resolve, 300))
 
-    const encodedUri = encodeURI(csvContent)
+    const headers = ['Data', 'Item', 'Tipo', 'Quantidade', 'Motivo', 'Usuário', 'Solicitante', 'OS']
+
+    const rows = filteredMovements.map((m) => {
+      const itemName = m.expand?.item_id?.nome || '-'
+      const userName = m.expand?.usuario_id?.name || '-'
+      return [
+        formatDate(m.data_movimento),
+        itemName,
+        m.tipo_movimento,
+        m.quantidade,
+        m.motivo || '',
+        userName,
+        m.solicitante || '',
+        m.ordem_servico || '',
+      ]
+    })
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
+    link.href = url
     link.setAttribute('download', 'relatorio_movimentacoes.csv')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+
+    setIsProcessingExport(false)
   }
 
   const handlePrintInventory = () => {
+    setIsProcessingPrint(true)
     flushSync(() => {
       setPrintType('inventory')
     })
-    window.print()
+    setTimeout(() => {
+      window.print()
+      setIsProcessingPrint(false)
+    }, 300)
   }
 
   const handlePrintOS = () => {
+    setIsProcessingPrint(true)
     flushSync(() => {
       setPrintType('os')
     })
-    window.print()
+    setTimeout(() => {
+      window.print()
+      setIsProcessingPrint(false)
+    }, 300)
   }
 
   const formatCurrency = (val: number) => {
@@ -195,19 +227,52 @@ export default function Reports() {
               </Badge>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
-            <Button variant="default" onClick={handlePrintInventory} className="w-full sm:w-auto">
-              <Printer className="mr-2 h-4 w-4" /> Imprimir Relatório
-            </Button>
-            {osQuery && filteredMovements.length > 0 && (
-              <Button variant="outline" onClick={handlePrintOS} className="w-full sm:w-auto">
-                <Printer className="mr-2 h-4 w-4" /> Imprimir OS
+
+          {canExportAndPrint && (
+            <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+              <Button
+                variant="default"
+                onClick={handlePrintInventory}
+                className="w-full sm:w-auto"
+                disabled={isProcessingPrint || isProcessingExport}
+              >
+                {isProcessingPrint && printType === 'inventory' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Printer className="mr-2 h-4 w-4" />
+                )}
+                Imprimir Relatório
               </Button>
-            )}
-            <Button variant="outline" onClick={handleExport} className="w-full sm:w-auto">
-              <Download className="mr-2 h-4 w-4" /> Exportar CSV
-            </Button>
-          </div>
+              {osQuery && filteredMovements.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={handlePrintOS}
+                  className="w-full sm:w-auto"
+                  disabled={isProcessingPrint || isProcessingExport}
+                >
+                  {isProcessingPrint && printType === 'os' ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Printer className="mr-2 h-4 w-4" />
+                  )}
+                  Imprimir OS
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={handleExport}
+                className="w-full sm:w-auto"
+                disabled={isProcessingExport || isProcessingPrint}
+              >
+                {isProcessingExport ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Exportar CSV
+              </Button>
+            </div>
+          )}
         </div>
 
         <Card>
@@ -285,13 +350,6 @@ export default function Reports() {
         id="printable-area"
         className="hidden print:block bg-white text-black p-8 print:p-0 text-sm max-w-4xl mx-auto print:max-w-none print:w-full"
       >
-        <style media="print">
-          {`
-            @page { size: A4 portrait; margin: 15mm; }
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          `}
-        </style>
-
         {printType === 'os' && (
           <div>
             <div className="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-8">

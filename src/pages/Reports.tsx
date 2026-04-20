@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Download, X, Printer, Search } from 'lucide-react'
+import { flushSync } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -17,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/format'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
+import { cn } from '@/lib/utils'
 
 export default function Reports() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -25,6 +27,9 @@ export default function Reports() {
 
   const [movements, setMovements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  const [inventoryItems, setInventoryItems] = useState<any[]>([])
+  const [printType, setPrintType] = useState<'os' | 'inventory'>('os')
 
   const loadData = async () => {
     try {
@@ -40,12 +45,29 @@ export default function Reports() {
     }
   }
 
+  const loadInventory = async () => {
+    try {
+      const res = await pb.collection('itens').getFullList({
+        expand: 'fornecedor_id',
+        sort: 'nome',
+      })
+      setInventoryItems(res)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   useEffect(() => {
     loadData()
+    loadInventory()
   }, [])
 
   useRealtime('movimentacoes', () => {
     loadData()
+  })
+
+  useRealtime('itens', () => {
+    loadInventory()
   })
 
   const filteredMovements = movements.filter((m) => {
@@ -104,6 +126,20 @@ export default function Reports() {
     document.body.removeChild(link)
   }
 
+  const handlePrintInventory = () => {
+    flushSync(() => {
+      setPrintType('inventory')
+    })
+    window.print()
+  }
+
+  const handlePrintOS = () => {
+    flushSync(() => {
+      setPrintType('os')
+    })
+    window.print()
+  }
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
   }
@@ -159,10 +195,13 @@ export default function Reports() {
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-2 w-full xl:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+            <Button variant="default" onClick={handlePrintInventory} className="w-full sm:w-auto">
+              <Printer className="mr-2 h-4 w-4" /> Imprimir Relatório
+            </Button>
             {osQuery && filteredMovements.length > 0 && (
-              <Button variant="default" onClick={() => window.print()} className="w-full sm:w-auto">
-                <Printer className="mr-2 h-4 w-4" /> Imprimir Relatório
+              <Button variant="outline" onClick={handlePrintOS} className="w-full sm:w-auto">
+                <Printer className="mr-2 h-4 w-4" /> Imprimir OS
               </Button>
             )}
             <Button variant="outline" onClick={handleExport} className="w-full sm:w-auto">
@@ -252,120 +291,195 @@ export default function Reports() {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           `}
         </style>
-        <div className="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-8">
+
+        {printType === 'os' && (
           <div>
-            <h1 className="text-3xl font-bold uppercase tracking-wider text-slate-900">
-              Relatório de OS
-            </h1>
-            <div className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-base">
-              <p className="text-slate-600 font-medium">Ordem de Serviço:</p>
-              <p className="font-bold text-slate-900">{osQuery || 'N/A'}</p>
-              <p className="text-slate-600 font-medium">Solicitante:</p>
-              <p className="font-bold text-slate-900">{solicitantePrincipal}</p>
+            <div className="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-8">
+              <div>
+                <h1 className="text-3xl font-bold uppercase tracking-wider text-slate-900">
+                  Relatório de OS
+                </h1>
+                <div className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-base">
+                  <p className="text-slate-600 font-medium">Ordem de Serviço:</p>
+                  <p className="font-bold text-slate-900">{osQuery || 'N/A'}</p>
+                  <p className="text-slate-600 font-medium">Solicitante:</p>
+                  <p className="font-bold text-slate-900">{solicitantePrincipal}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-slate-600">
+                  Data de Emissão:{' '}
+                  <span className="font-semibold text-slate-900">
+                    {new Date().toLocaleDateString('pt-BR')}
+                  </span>
+                </p>
+                <p className="text-slate-600">
+                  Total de Itens:{' '}
+                  <span className="font-semibold text-slate-900">{filteredMovements.length}</span>
+                </p>
+              </div>
+            </div>
+
+            <table className="w-full text-left border-collapse mb-8">
+              <thead>
+                <tr className="border-y-2 border-slate-800 bg-slate-50 text-slate-900">
+                  <th className="py-3 px-2 font-bold">Item</th>
+                  <th className="py-3 px-2 font-bold">Solicitante</th>
+                  <th className="py-3 px-2 font-bold text-right">Quantidade</th>
+                  <th className="py-3 px-2 font-bold text-right">Valor Unit.</th>
+                  <th className="py-3 px-2 font-bold text-right">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredMovements.map((m, i) => {
+                  const unitPrice = m.expand?.item_id?.valor_unitario || 0
+                  const isSaida = m.tipo_movimento === 'saida'
+                  const qty = m.quantidade
+                  const total = unitPrice * qty * (isSaida ? 1 : -1)
+
+                  return (
+                    <tr key={m.id || i} className="border-b border-slate-200">
+                      <td className="py-3 px-2">
+                        <span className="font-medium">{m.expand?.item_id?.nome || '-'}</span>
+                        {!isSaida && (
+                          <span className="ml-2 text-xs bg-slate-200 px-1 py-0.5 rounded text-slate-800">
+                            Devolução
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-slate-600">{m.solicitante || '-'}</td>
+                      <td className="py-3 px-2 text-right font-medium">{qty}</td>
+                      <td className="py-3 px-2 text-right text-slate-600">
+                        {formatCurrency(unitPrice)}
+                      </td>
+                      <td className="py-3 px-2 text-right font-medium">{formatCurrency(total)}</td>
+                    </tr>
+                  )
+                })}
+                {filteredMovements.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-500 italic">
+                      Nenhum item registrado para esta Ordem de Serviço.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-slate-800 bg-slate-50">
+                  <td
+                    colSpan={4}
+                    className="py-4 px-2 text-right font-bold text-lg text-slate-900 uppercase tracking-tight"
+                  >
+                    Valor Total da OS:
+                  </td>
+                  <td className="py-4 px-2 text-right font-bold text-lg text-slate-900">
+                    {formatCurrency(reportTotal)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div className="mt-32 flex justify-between px-12 break-inside-avoid">
+              <div className="text-center w-64">
+                <div className="border-t border-slate-800 mb-2"></div>
+                <p className="font-semibold text-slate-900">Assinatura do Solicitante</p>
+                <p className="text-slate-500 text-sm mt-1">{solicitantePrincipal}</p>
+              </div>
+              <div className="text-center w-64">
+                <div className="border-t border-slate-800 mb-2"></div>
+                <p className="font-semibold text-slate-900">Assinatura do Responsável</p>
+                <p className="text-slate-500 text-sm mt-1">Departamento Financeiro / Estoque</p>
+              </div>
+            </div>
+
+            <div className="mt-16 pt-6 border-t-2 border-slate-800 flex flex-col items-center justify-center text-slate-600 text-sm gap-2 break-inside-avoid">
+              <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 font-medium">
+                <span>
+                  <strong>Endereço:</strong> Rua Otilio Dalçoquio n°679
+                </span>
+                <span>
+                  <strong>Telefone:</strong> (47) 3341-1290
+                </span>
+                <span>
+                  <strong>E-mail:</strong> financeiro@oficinagraf.com.br
+                </span>
+              </div>
+              <div className="text-slate-400 text-xs mt-2">
+                Documento gerado automaticamente pelo Sistema de Gestão de Estoque
+              </div>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-slate-600">
-              Data de Emissão:{' '}
-              <span className="font-semibold text-slate-900">
-                {new Date().toLocaleDateString('pt-BR')}
-              </span>
-            </p>
-            <p className="text-slate-600">
-              Total de Itens:{' '}
-              <span className="font-semibold text-slate-900">{filteredMovements.length}</span>
-            </p>
-          </div>
-        </div>
+        )}
 
-        <table className="w-full text-left border-collapse mb-8">
-          <thead>
-            <tr className="border-y-2 border-slate-800 bg-slate-50 text-slate-900">
-              <th className="py-3 px-2 font-bold">Item</th>
-              <th className="py-3 px-2 font-bold">Solicitante</th>
-              <th className="py-3 px-2 font-bold text-right">Quantidade</th>
-              <th className="py-3 px-2 font-bold text-right">Valor Unit.</th>
-              <th className="py-3 px-2 font-bold text-right">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredMovements.map((m, i) => {
-              const unitPrice = m.expand?.item_id?.valor_unitario || 0
-              const isSaida = m.tipo_movimento === 'saida'
-              const qty = m.quantidade
-              const total = unitPrice * qty * (isSaida ? 1 : -1)
+        {printType === 'inventory' && (
+          <div>
+            <div className="text-center mb-8 border-b-2 border-slate-800 pb-6">
+              <h1 className="text-3xl font-bold text-slate-900 uppercase tracking-wider">
+                Oficina Graf
+              </h1>
+              <h2 className="text-xl text-slate-700 mt-2 font-semibold">
+                Relatório Geral de Estoque
+              </h2>
+              <p className="text-sm text-slate-500 mt-4">
+                Gerado em: {new Date().toLocaleDateString('pt-BR')} às{' '}
+                {new Date().toLocaleTimeString('pt-BR')}
+              </p>
+              <p className="text-sm text-slate-500">
+                Total de Itens:{' '}
+                <span className="font-bold text-slate-900">{inventoryItems.length}</span>
+              </p>
+            </div>
 
-              return (
-                <tr key={m.id || i} className="border-b border-slate-200">
-                  <td className="py-3 px-2">
-                    <span className="font-medium">{m.expand?.item_id?.nome || '-'}</span>
-                    {!isSaida && (
-                      <span className="ml-2 text-xs bg-slate-200 px-1 py-0.5 rounded text-slate-800">
-                        Devolução
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-2 text-slate-600">{m.solicitante || '-'}</td>
-                  <td className="py-3 px-2 text-right font-medium">{qty}</td>
-                  <td className="py-3 px-2 text-right text-slate-600">
-                    {formatCurrency(unitPrice)}
-                  </td>
-                  <td className="py-3 px-2 text-right font-medium">{formatCurrency(total)}</td>
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-y-2 border-slate-800 bg-slate-50 text-slate-900">
+                  <th className="py-3 px-2 font-bold w-[15%]">Código</th>
+                  <th className="py-3 px-2 font-bold w-[35%]">Nome</th>
+                  <th className="py-3 px-2 font-bold text-right w-[15%]">Quantidade em estoque</th>
+                  <th className="py-3 px-2 font-bold w-[15%]">Posição no estoque</th>
+                  <th className="py-3 px-2 font-bold w-[20%]">Fornecedor Principal</th>
                 </tr>
-              )
-            })}
-            {filteredMovements.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-8 text-center text-slate-500 italic">
-                  Nenhum item registrado para esta Ordem de Serviço.
-                </td>
-              </tr>
-            )}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-slate-800 bg-slate-50">
-              <td
-                colSpan={4}
-                className="py-4 px-2 text-right font-bold text-lg text-slate-900 uppercase tracking-tight"
-              >
-                Valor Total da OS:
-              </td>
-              <td className="py-4 px-2 text-right font-bold text-lg text-slate-900">
-                {formatCurrency(reportTotal)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+              </thead>
+              <tbody>
+                {inventoryItems.map((item) => (
+                  <tr key={item.id} className="border-b border-slate-200">
+                    <td className="py-3 px-2 font-medium">{item.sku}</td>
+                    <td className="py-3 px-2">{item.nome}</td>
+                    <td className="py-3 px-2 text-right font-medium">
+                      {item.quantidade_atual || 0}
+                    </td>
+                    <td className="py-3 px-2">{item.posicao_estoque || '-'}</td>
+                    <td className="py-3 px-2">{item.expand?.fornecedor_id?.nome || '-'}</td>
+                  </tr>
+                ))}
+                {inventoryItems.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-500 italic">
+                      Nenhum item encontrado.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
 
-        <div className="mt-32 flex justify-between px-12">
-          <div className="text-center w-64">
-            <div className="border-t border-slate-800 mb-2"></div>
-            <p className="font-semibold text-slate-900">Assinatura do Solicitante</p>
-            <p className="text-slate-500 text-sm mt-1">{solicitantePrincipal}</p>
+            <div className="mt-16 pt-6 border-t-2 border-slate-800 flex flex-col items-center justify-center text-slate-600 text-sm gap-2 break-inside-avoid">
+              <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 font-medium">
+                <span>
+                  <strong>Endereço:</strong> Rua Otilio Dalçoquio n°679
+                </span>
+                <span>
+                  <strong>Telefone:</strong> (47) 3341-1290
+                </span>
+                <span>
+                  <strong>E-mail:</strong> financeiro@oficinagraf.com.br
+                </span>
+              </div>
+              <div className="text-slate-400 text-xs mt-2">
+                Documento gerado automaticamente pelo Sistema de Gestão de Estoque
+              </div>
+            </div>
           </div>
-          <div className="text-center w-64">
-            <div className="border-t border-slate-800 mb-2"></div>
-            <p className="font-semibold text-slate-900">Assinatura do Responsável</p>
-            <p className="text-slate-500 text-sm mt-1">Departamento Financeiro / Estoque</p>
-          </div>
-        </div>
-
-        <div className="mt-16 pt-6 border-t-2 border-slate-800 flex flex-col items-center justify-center text-slate-600 text-sm gap-2">
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 font-medium">
-            <span>
-              <strong>Endereço:</strong> Rua Otilio Dalçoquio n°679
-            </span>
-            <span>
-              <strong>Telefone:</strong> (47) 3341-1290
-            </span>
-            <span>
-              <strong>E-mail:</strong> financeiro@oficinagraf.com.br
-            </span>
-          </div>
-          <div className="text-slate-400 text-xs mt-2">
-            Documento gerado automaticamente pelo Sistema de Gestão de Estoque
-          </div>
-        </div>
+        )}
       </div>
     </>
   )

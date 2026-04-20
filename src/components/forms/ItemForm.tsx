@@ -33,7 +33,7 @@ const schema = z
     minQuantity: z.coerce.number().min(0),
     costPrice: z.coerce.number().min(0),
     pdfUrl: z.string().url('URL inválida').optional().or(z.literal('')),
-    shelfLocation: z.string().optional().or(z.literal('')),
+    posicao_estoque: z.string().optional().or(z.literal('')),
     fornecedor_id: z.string().optional().or(z.literal('')),
     foto: z.any().optional(),
     fornecedores: z
@@ -84,7 +84,7 @@ export function ItemForm({
       minQuantity: defaultValues?.minQuantity || 0,
       costPrice: defaultValues?.costPrice || 0,
       pdfUrl: defaultValues?.pdfUrl || '',
-      shelfLocation: defaultValues?.shelfLocation || '',
+      posicao_estoque: defaultValues?.posicao_estoque || defaultValues?.shelfLocation || '',
       fornecedor_id: defaultValues?.fornecedor_id || '',
       fornecedores: [],
     },
@@ -318,10 +318,10 @@ export function ItemForm({
           />
           <FormField
             control={form.control}
-            name="shelfLocation"
+            name="posicao_estoque"
             render={({ field }) => (
               <FormItem className="col-span-2">
-                <FormLabel>Localização na Prateleira</FormLabel>
+                <FormLabel>Posição no Estoque</FormLabel>
                 <FormControl>
                   <Input {...field} placeholder="Ex: Corredor A, Prateleira 3" />
                 </FormControl>

@@ -56,6 +56,7 @@ export interface Item {
   costPrice: number
   pdfUrl?: string
   shelfLocation?: string
+  posicao_estoque?: string
   foto?: string
   collectionId?: string
   collectionName?: string

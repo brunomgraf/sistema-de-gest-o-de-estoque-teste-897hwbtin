@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-20T23:28:52.991Z",
+  "generatedAt": "2026-04-20T23:40:56.356Z",
   "collections": [
     {
       "name": "users",
@@ -122,6 +122,12 @@
         {
           "name": "foto",
           "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "posicao_estoque",
+          "type": "text",
           "required": false,
           "system": false
         }

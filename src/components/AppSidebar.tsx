@@ -34,6 +34,12 @@ const MENU_ITEMS = [
   { title: 'Fornecedores (CRM)', url: '/fornecedores', icon: Truck, roles: ['admin', 'gestor'] },
   { title: 'Relatórios', url: '/relatorios', icon: FileText },
   { title: 'Divergências', url: '/relatorios/divergencias', icon: AlertTriangle },
+  {
+    title: 'Inventário',
+    url: '/relatorios/inventario',
+    icon: FileCheck,
+    roles: ['admin', 'gestor'],
+  },
 ]
 
 export function AppSidebar() {

@@ -116,6 +116,8 @@ export default function InventoryReport() {
           body > *:not(#print-section) { display: none !important; }
           body { background: white !important; }
           #print-section { display: block !important; position: static !important; }
+          thead { display: table-header-group; }
+          tr { page-break-inside: avoid; }
         }
       `}</style>
 
@@ -129,7 +131,7 @@ export default function InventoryReport() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={exportPDF}>
             <Printer className="w-4 h-4 mr-2" />
-            Exportar PDF
+            Imprimir PDF
           </Button>
           <Button variant="outline" onClick={exportCSV}>
             <Download className="w-4 h-4 mr-2" />
@@ -250,7 +252,7 @@ export default function InventoryReport() {
         <div id="print-section" className="hidden print:block bg-white text-black p-8 w-full">
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold text-black">Oficina Graf</h1>
-            <h2 className="text-lg text-black">Relatório de Inventário</h2>
+            <h2 className="text-lg text-black">Relatório Geral de Inventário</h2>
             <p className="text-sm text-gray-500">
               Gerado em: {new Date().toLocaleDateString('pt-BR')} às{' '}
               {new Date().toLocaleTimeString('pt-BR')}
@@ -266,7 +268,7 @@ export default function InventoryReport() {
                   Nome
                 </th>
                 <th className="border border-gray-300 p-2 text-right text-black font-semibold">
-                  Qtd Estoque
+                  Quantidade
                 </th>
                 <th className="border border-gray-300 p-2 text-left text-black font-semibold">
                   Posição
@@ -277,7 +279,7 @@ export default function InventoryReport() {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((item) => (
+              {items.map((item) => (
                 <tr key={item.id}>
                   <td className="border border-gray-300 p-2 text-black">{item.sku}</td>
                   <td className="border border-gray-300 p-2 text-black">{item.nome}</td>
@@ -294,6 +296,7 @@ export default function InventoryReport() {
               ))}
             </tbody>
           </table>
+          <div className="mt-6 text-right text-black font-bold">Total de Itens: {items.length}</div>
         </div>,
         document.body,
       )}

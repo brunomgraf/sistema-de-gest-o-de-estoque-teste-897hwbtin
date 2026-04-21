@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search, Image as ImageIcon } from 'lucide-react'
+import { Plus, Search, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -186,12 +186,13 @@ export default function Inventory() {
               <TableHead className="text-right">Qtd. Atual</TableHead>
               <TableHead className="text-right">Qtd. Mínima</TableHead>
               <TableHead className="text-right">Valor Custo</TableHead>
+              {user?.role === 'admin' && <TableHead className="text-right">Ações</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24">
+                <TableCell colSpan={user?.role === 'admin' ? 8 : 7} className="h-24">
                   <div className="flex flex-col gap-2 w-full px-4">
                     <Skeleton className="h-8 w-full" />
                     <Skeleton className="h-8 w-full" />
@@ -201,7 +202,10 @@ export default function Inventory() {
               </TableRow>
             ) : filteredItems.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={user?.role === 'admin' ? 8 : 7}
+                  className="h-24 text-center text-muted-foreground"
+                >
                   Nenhum item encontrado.
                 </TableCell>
               </TableRow>
@@ -253,6 +257,26 @@ export default function Inventory() {
                     {item.minQuantity}
                   </TableCell>
                   <TableCell className="text-right">{formatCurrency(item.costPrice)}</TableCell>
+                  {user?.role === 'admin' && (
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={async () => {
+                          if (confirm('Excluir este item?')) {
+                            try {
+                              await pb.collection('itens').delete(item.id)
+                              toast.success('Item excluído')
+                            } catch (e) {
+                              toast.error('Erro ao excluir item')
+                            }
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}

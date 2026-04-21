@@ -10,6 +10,7 @@ import {
   LogOut,
   PackageMinus,
   AlertTriangle,
+  Users as UsersIcon,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -39,6 +40,12 @@ const MENU_ITEMS = [
     url: '/relatorios/inventario',
     icon: FileCheck,
     roles: ['admin', 'gestor'],
+  },
+  {
+    title: 'Configurações / Usuários',
+    url: '/configuracoes/usuarios',
+    icon: UsersIcon,
+    roles: ['admin'],
   },
 ]
 

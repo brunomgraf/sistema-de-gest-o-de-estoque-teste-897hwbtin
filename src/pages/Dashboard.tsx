@@ -33,11 +33,9 @@ export default function Dashboard() {
     try {
       const [items, critical, suppliers, orders, movements] = await Promise.all([
         pb.collection('itens').getList(1, 1),
-        pb
-          .collection('itens')
-          .getList(1, 1, {
-            filter: 'status_critico = true || quantidade_atual <= quantidade_minima',
-          }),
+        pb.collection('itens').getList(1, 1, {
+          filter: 'status_critico = true || quantidade_atual <= quantidade_minima',
+        }),
         pb.collection('fornecedores').getList(1, 1),
         pb.collection('ordens_compra').getList(1, 1, { filter: 'status = "pendente"' }),
         pb.collection('movimentacoes').getList(1, 10, {

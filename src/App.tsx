@@ -25,6 +25,7 @@ import PurchaseOrders from './pages/PurchaseOrders'
 import Receiving from './pages/Receiving'
 import StockOutPage from './pages/StockOutPage'
 import NotFound from './pages/NotFound'
+import UsersPage from './pages/Users'
 
 const AppContent = () => {
   const { user } = useAuth()
@@ -46,6 +47,7 @@ const AppContent = () => {
           <Route path="/relatorios" element={<Reports />} />
           <Route path="/relatorios/divergencias" element={<Discrepancies />} />
           <Route path="/relatorios/inventario" element={<InventoryReport />} />
+          <Route path="/configuracoes/usuarios" element={<UsersPage />} />
         </Route>
       </Route>
       <Route path="*" element={<NotFound />} />

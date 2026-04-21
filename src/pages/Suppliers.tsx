@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Search, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Search, ChevronRight, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -24,6 +24,7 @@ import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { SupplierForm } from '@/components/forms/SupplierForm'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
 
 function PerformanceBadge({ stats }: { stats?: { total: number; onTime: number; late: number } }) {
   if (!stats || stats.total === 0)
@@ -169,6 +170,7 @@ export default function Suppliers() {
 
   const canEdit = user?.role === 'admin' || user?.role === 'gestor'
   const canAdd = user?.role === 'admin' || user?.role === 'gestor'
+  const canDelete = user?.role === 'admin'
 
   return (
     <div className="space-y-6 pb-8">
@@ -262,6 +264,24 @@ export default function Suppliers() {
                           onClick={() => setEditingSupplier(supplier)}
                         >
                           <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={async () => {
+                            if (confirm('Tem certeza que deseja excluir este fornecedor?')) {
+                              try {
+                                await pb.collection('fornecedores').delete(supplier.id)
+                                toast.success('Fornecedor excluído com sucesso')
+                              } catch (e) {
+                                toast.error('Erro ao excluir fornecedor')
+                              }
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
                       )}
                       <Button variant="ghost" size="icon" asChild>

@@ -19,7 +19,16 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { FileCheck, Search, FileText, AlertTriangle, Printer, MoreHorizontal } from 'lucide-react'
+import {
+  FileCheck,
+  Search,
+  FileText,
+  AlertTriangle,
+  Printer,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,8 +54,38 @@ export default function PurchaseOrders() {
   const [aprovacoes, setAprovacoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
+  const user = pb.authStore.record
+  const canEdit = user?.role === 'admin' || user?.role === 'gestor'
+  const canDelete = user?.role === 'admin'
+
   const [approvalFormOpen, setApprovalFormOpen] = useState(false)
   const [approvalData, setApprovalData] = useState({ aprovador_nome: '', observacoes: '' })
+
+  const [editStatusOpen, setEditStatusOpen] = useState(false)
+  const [editingPo, setEditingPo] = useState<any>(null)
+  const [newStatus, setNewStatus] = useState<string>('')
+
+  const handleDeletePo = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir esta Ordem de Compra?')) {
+      try {
+        await pb.collection('ordens_compra').delete(id)
+        toast.success('Ordem de Compra excluída com sucesso')
+      } catch (e) {
+        toast.error('Erro ao excluir Ordem de Compra')
+      }
+    }
+  }
+
+  const handleUpdateStatus = async () => {
+    if (!editingPo) return
+    try {
+      await pb.collection('ordens_compra').update(editingPo.id, { status: newStatus })
+      toast.success('Status atualizado com sucesso')
+      setEditStatusOpen(false)
+    } catch (e) {
+      toast.error('Erro ao atualizar status')
+    }
+  }
 
   const loadData = async () => {
     try {
@@ -263,6 +302,28 @@ export default function PurchaseOrders() {
                         <DropdownMenuItem onClick={() => setSelectedPoId(po.id)}>
                           <FileText className="mr-2 h-4 w-4" /> Ver Documento
                         </DropdownMenuItem>
+                        {canEdit && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditingPo(po)
+                              setNewStatus(po.status)
+                              setEditStatusOpen(true)
+                            }}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" /> Editar Status
+                          </DropdownMenuItem>
+                        )}
+                        {canDelete && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDeletePo(po.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -452,6 +513,34 @@ export default function PurchaseOrders() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editStatusOpen} onOpenChange={setEditStatusOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Editar Status da OC</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Novo Status</Label>
+              <select
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="pendente">Pendente</option>
+                <option value="entregue">Entregue / Recebido</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditStatusOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateStatus}>Salvar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Download, X, Printer, Search, Loader2 } from 'lucide-react'
+import { Download, X, Printer, Search, Loader2, Trash2 } from 'lucide-react'
 import { flushSync } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,10 +19,12 @@ import { formatDate } from '@/lib/format'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useAuth } from '@/hooks/use-auth'
+import { toast } from 'sonner'
 
 export default function Reports() {
   const { user } = useAuth()
   const canExportAndPrint = user?.role === 'admin' || user?.role === 'gestor'
+  const canDelete = user?.role === 'admin'
 
   const [searchParams, setSearchParams] = useSearchParams()
   const filter = searchParams.get('filter')
@@ -148,6 +150,18 @@ export default function Reports() {
     document.body.removeChild(link)
 
     setIsProcessingExport(false)
+  }
+
+  const handleDeleteMovement = async (id: string) => {
+    if (confirm('Excluir esta movimentação?')) {
+      try {
+        await pb.collection('movimentacoes').delete(id)
+        toast.success('Movimentação excluída')
+      } catch (e) {
+        toast.error('Erro ao excluir movimentação')
+        console.error(e)
+      }
+    }
   }
 
   const handlePrintInventory = () => {
@@ -291,18 +305,22 @@ export default function Reports() {
                   <TableHead>Usuário</TableHead>
                   <TableHead>Solicitante</TableHead>
                   <TableHead>OS</TableHead>
+                  {canDelete && <TableHead className="text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24">
+                    <TableCell colSpan={canDelete ? 9 : 8} className="h-24">
                       <Skeleton className="h-20 w-full" />
                     </TableCell>
                   </TableRow>
                 ) : filteredMovements.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={canDelete ? 9 : 8}
+                      className="h-24 text-center text-muted-foreground"
+                    >
                       Nenhuma movimentação encontrada.
                     </TableCell>
                   </TableRow>
@@ -336,6 +354,17 @@ export default function Reports() {
                       </TableCell>
                       <TableCell>{m.solicitante || '-'}</TableCell>
                       <TableCell>{m.ordem_servico || '-'}</TableCell>
+                      {canDelete && (
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteMovement(m.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))
                 )}

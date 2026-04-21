@@ -14,7 +14,9 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -31,7 +33,11 @@ export default function Dashboard() {
     try {
       const [items, critical, suppliers, orders, movements] = await Promise.all([
         pb.collection('itens').getList(1, 1),
-        pb.collection('itens').getList(1, 1, { filter: 'quantidade_atual <= quantidade_minima' }),
+        pb
+          .collection('itens')
+          .getList(1, 1, {
+            filter: 'status_critico = true || quantidade_atual <= quantidade_minima',
+          }),
         pb.collection('fornecedores').getList(1, 1),
         pb.collection('ordens_compra').getList(1, 1, { filter: 'status = "pendente"' }),
         pb.collection('movimentacoes').getList(1, 10, {
@@ -49,6 +55,7 @@ export default function Dashboard() {
       setRecentMovements(movements.items)
     } catch (error) {
       console.error(error)
+      toast.error('Erro ao carregar dados do dashboard')
     } finally {
       setLoading(false)
     }
@@ -120,8 +127,11 @@ export default function Dashboard() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>Movimentações Recentes</CardTitle>
+          <Button variant="outline" size="sm" onClick={() => navigate('/relatorios')}>
+            Ver todas
+          </Button>
         </CardHeader>
         <CardContent>
           <Table>

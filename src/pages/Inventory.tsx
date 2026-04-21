@@ -28,6 +28,7 @@ import { ItemStatusBadge } from '@/components/ItemStatusBadge'
 import { ItemForm } from '@/components/forms/ItemForm'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
+import { toast } from 'sonner'
 
 export default function Inventory() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -50,9 +51,10 @@ export default function Inventory() {
           id: i.id,
           code: i.sku,
           name: i.nome,
-          currentQuantity: i.quantidade_atual,
-          minQuantity: i.quantidade_minima,
+          currentQuantity: i.quantidade_atual || 0,
+          minQuantity: i.quantidade_minima || 0,
           costPrice: i.valor_unitario,
+          status_critico: i.status_critico,
           foto: i.foto,
           collectionId: i.collectionId,
           collectionName: i.collectionName,
@@ -60,6 +62,7 @@ export default function Inventory() {
       )
     } catch (e) {
       console.error(e)
+      toast.error('Erro ao carregar dados do estoque')
     } finally {
       setLoading(false)
     }
@@ -80,12 +83,16 @@ export default function Inventory() {
 
     if (!matchesSearch) return false
 
-    if (filter === 'critico') return item.currentQuantity <= item.minQuantity
+    if (filter === 'critico')
+      return item.status_critico === true || item.currentQuantity <= item.minQuantity
     if (filter === 'atencao')
       return (
-        item.currentQuantity > item.minQuantity && item.currentQuantity <= item.minQuantity * 1.2
+        !item.status_critico &&
+        item.currentQuantity > item.minQuantity &&
+        item.currentQuantity <= item.minQuantity * 1.2
       )
-    if (filter === 'ok') return item.currentQuantity > item.minQuantity * 1.2
+    if (filter === 'ok')
+      return !item.status_critico && item.currentQuantity > item.minQuantity * 1.2
 
     return true
   })
@@ -108,8 +115,10 @@ export default function Inventory() {
 
       await pb.collection('itens').create(payload)
       setOpen(false)
+      toast.success('Item cadastrado com sucesso')
     } catch (e) {
       console.error(e)
+      toast.error('Erro ao cadastrar item')
     }
   }
 

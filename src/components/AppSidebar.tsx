@@ -49,6 +49,12 @@ const ADMIN_ITEMS = [
     roles: ['admin', 'gestor'],
   },
   {
+    title: 'Consumo por OP',
+    url: '/relatorios/consumo-producao',
+    icon: PackageMinus,
+    roles: ['admin', 'gestor'],
+  },
+  {
     title: 'Configurações / Usuários',
     url: '/configuracoes/usuarios',
     icon: UsersIcon,

@@ -20,6 +20,7 @@ import SupplierProfile from './pages/SupplierProfile'
 import Reports from './pages/Reports'
 import Discrepancies from './pages/reports/Discrepancies'
 import InventoryReport from './pages/reports/InventoryReport'
+import ProductionConsumption from './pages/reports/ProductionConsumption'
 import Purchases from './pages/Purchases'
 import PurchaseOrders from './pages/PurchaseOrders'
 import Receiving from './pages/Receiving'
@@ -50,6 +51,7 @@ const AppContent = () => {
           <Route path="/relatorios" element={<Reports />} />
           <Route path="/relatorios/divergencias" element={<Discrepancies />} />
           <Route path="/relatorios/inventario" element={<InventoryReport />} />
+          <Route path="/relatorios/consumo-producao" element={<ProductionConsumption />} />
           <Route path="/configuracoes/usuarios" element={<UsersPage />} />
           <Route path="/collaborators" element={<CollaboratorsPage />} />
         </Route>

@@ -32,6 +32,7 @@ const MENU_ITEMS = [
   { title: 'Compras', url: '/compras', icon: ShoppingBag },
   { title: 'Ordens de Compra', url: '/ordens-de-compra', icon: FileCheck },
   { title: 'Recebimento', url: '/recebimento', icon: ArrowDownToLine },
+  { title: 'Produção', url: '/producao', icon: Package },
   { title: 'Fornecedores (CRM)', url: '/fornecedores', icon: Truck, roles: ['admin', 'gestor'] },
   { title: 'Relatórios', url: '/relatorios', icon: FileText },
   { title: 'Divergências', url: '/relatorios/divergencias', icon: AlertTriangle },

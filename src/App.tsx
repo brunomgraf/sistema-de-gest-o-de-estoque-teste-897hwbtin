@@ -23,6 +23,7 @@ import InventoryReport from './pages/reports/InventoryReport'
 import Purchases from './pages/Purchases'
 import PurchaseOrders from './pages/PurchaseOrders'
 import Receiving from './pages/Receiving'
+import ProductionItemsPage from './pages/Production'
 import StockOutPage from './pages/StockOutPage'
 import NotFound from './pages/NotFound'
 import UsersPage from './pages/Users'
@@ -42,6 +43,7 @@ const AppContent = () => {
           <Route path="/compras" element={<Purchases />} />
           <Route path="/ordens-de-compra" element={<PurchaseOrders />} />
           <Route path="/recebimento" element={<Receiving />} />
+          <Route path="/producao" element={<ProductionItemsPage />} />
           <Route path="/saida-estoque" element={<StockOutPage />} />
           <Route path="/fornecedores" element={<Suppliers />} />
           <Route path="/fornecedores/:id" element={<SupplierProfile />} />

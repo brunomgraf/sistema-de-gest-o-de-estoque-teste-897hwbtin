@@ -70,9 +70,18 @@ export interface Item {
   foto?: string
   collectionId?: string
   collectionName?: string
+  nome?: string
+  sku?: string
 }
 
-export type MovementType = 'in' | 'out' | 'adjust'
+export type MovementType =
+  | 'in'
+  | 'out'
+  | 'adjust'
+  | 'entrada'
+  | 'saida'
+  | 'producao_saida'
+  | 'producao_retorno'
 
 export interface Movement {
   id: string
@@ -85,6 +94,21 @@ export interface Movement {
   solicitante?: string
   ordem_servico?: string
   unitPrice?: number
+  // PocketBase snake_case properties
+  item_id?: string
+  tipo_movimento?: MovementType
+  quantidade?: number
+  data_movimento?: string
+  motivo?: string
+  usuario_id?: string
+  colaborador_id?: string
+  created?: string
+  updated?: string
+  expand?: {
+    item_id?: any
+    usuario_id?: any
+    colaborador_id?: any
+  }
 }
 
 export type TicketStatus = 'pendente' | 'em_cotacao' | 'concluido'

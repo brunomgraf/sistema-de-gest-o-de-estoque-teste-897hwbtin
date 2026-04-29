@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-21T00:10:25.593Z",
+  "generatedAt": "2026-04-29T22:30:31.279Z",
   "collections": [
     {
       "name": "users",
@@ -780,6 +780,59 @@
         "CREATE INDEX idx_fornecedor_contatos_fornecedor ON fornecedor_contatos (fornecedor_id)",
         "CREATE INDEX idx_fornecedor_contatos_data ON fornecedor_contatos (data_contato DESC)"
       ]
+    },
+    {
+      "name": "colaboradores",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.role = 'admin'",
+        "update": "@request.auth.role = 'admin'",
+        "delete": "@request.auth.role = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "nome_completo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "cargo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "setor",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "user_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
     }
   ]
 }

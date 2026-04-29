@@ -42,6 +42,11 @@ const MENU_ITEMS = [
     roles: ['admin', 'gestor'],
   },
   {
+    title: 'Colaboradores',
+    url: '/collaborators',
+    icon: UsersIcon,
+  },
+  {
     title: 'Configurações / Usuários',
     url: '/configuracoes/usuarios',
     icon: UsersIcon,

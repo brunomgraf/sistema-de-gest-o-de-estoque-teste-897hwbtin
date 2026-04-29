@@ -26,6 +26,7 @@ import Receiving from './pages/Receiving'
 import StockOutPage from './pages/StockOutPage'
 import NotFound from './pages/NotFound'
 import UsersPage from './pages/Users'
+import CollaboratorsPage from './pages/Collaborators'
 
 const AppContent = () => {
   const { user } = useAuth()
@@ -48,6 +49,7 @@ const AppContent = () => {
           <Route path="/relatorios/divergencias" element={<Discrepancies />} />
           <Route path="/relatorios/inventario" element={<InventoryReport />} />
           <Route path="/configuracoes/usuarios" element={<UsersPage />} />
+          <Route path="/collaborators" element={<CollaboratorsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<NotFound />} />

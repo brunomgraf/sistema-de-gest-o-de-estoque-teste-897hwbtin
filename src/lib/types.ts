@@ -7,6 +7,16 @@ export interface User {
   role: Role
 }
 
+export interface Collaborator {
+  id: string
+  nome_completo: string
+  cargo: string
+  setor: string
+  user_id?: string
+  created: string
+  updated: string
+}
+
 export interface Supplier {
   id: string
   name: string

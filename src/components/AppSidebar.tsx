@@ -11,7 +11,6 @@ import {
   PackageMinus,
   AlertTriangle,
   Users as UsersIcon,
-  ArrowRightLeft,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -33,7 +32,6 @@ const OPERATIONAL_ITEMS = [
   { title: 'Saída de Estoque ITENS', url: '/saida-estoque', icon: PackageMinus },
   { title: 'Saída de Estoque FERRAMENTAS', url: '/producao', icon: Package },
   { title: 'Itens / Estoque', url: '/estoque', icon: Package },
-  { title: 'Movimentações', url: '/movimentacoes', icon: ArrowRightLeft },
   { title: 'Solicitações de Compra', url: '/compras', icon: ShoppingBag },
   { title: 'Ordens de Compra', url: '/ordens-de-compra', icon: FileCheck },
   { title: 'Recebimento', url: '/recebimento', icon: ArrowDownToLine },

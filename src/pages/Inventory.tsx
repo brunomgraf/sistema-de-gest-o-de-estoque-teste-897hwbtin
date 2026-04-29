@@ -51,6 +51,7 @@ export default function Inventory() {
           id: i.id,
           code: i.sku,
           name: i.nome,
+          tipo: i.tipo,
           currentQuantity: i.quantidade_atual || 0,
           minQuantity: i.quantidade_minima || 0,
           costPrice: i.valor_unitario,
@@ -107,6 +108,7 @@ export default function Inventory() {
         valor_unitario: data.costPrice || 0,
         status_critico: (data.currentQuantity || 0) <= (data.minQuantity || 0),
         fornecedor_id: data.fornecedor_id || null,
+        tipo: data.tipo || 'item',
       }
 
       if (data.foto !== undefined) {
@@ -182,6 +184,7 @@ export default function Inventory() {
               <TableHead className="w-[60px]">Imagem</TableHead>
               <TableHead className="w-[100px]">Status</TableHead>
               <TableHead>Código</TableHead>
+              <TableHead>Tipo</TableHead>
               <TableHead>Nome</TableHead>
               <TableHead className="text-right">Qtd. Atual</TableHead>
               <TableHead className="text-right">Qtd. Mínima</TableHead>
@@ -192,7 +195,7 @@ export default function Inventory() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={user?.role === 'admin' ? 8 : 7} className="h-24">
+                <TableCell colSpan={user?.role === 'admin' ? 9 : 8} className="h-24">
                   <div className="flex flex-col gap-2 w-full px-4">
                     <Skeleton className="h-8 w-full" />
                     <Skeleton className="h-8 w-full" />
@@ -203,7 +206,7 @@ export default function Inventory() {
             ) : filteredItems.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={user?.role === 'admin' ? 8 : 7}
+                  colSpan={user?.role === 'admin' ? 9 : 8}
                   className="h-24 text-center text-muted-foreground"
                 >
                   Nenhum item encontrado.
@@ -251,6 +254,7 @@ export default function Inventory() {
                     <ItemStatusBadge item={item} />
                   </TableCell>
                   <TableCell className="font-medium">{item.code}</TableCell>
+                  <TableCell className="capitalize">{item.tipo || 'item'}</TableCell>
                   <TableCell>{item.name}</TableCell>
                   <TableCell className="text-right font-semibold">{item.currentQuantity}</TableCell>
                   <TableCell className="text-right text-muted-foreground">

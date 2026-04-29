@@ -43,6 +43,7 @@ export default function ItemDetails() {
         id: itemRes.id,
         code: itemRes.sku,
         name: itemRes.nome,
+        tipo: itemRes.tipo,
         currentQuantity: itemRes.quantidade_atual,
         minQuantity: itemRes.quantidade_minima,
         costPrice: itemRes.valor_unitario,
@@ -90,6 +91,7 @@ export default function ItemDetails() {
       valor_unitario: data.costPrice,
       status_critico: qty <= data.minQuantity,
       fornecedor_id: data.fornecedor_id || null,
+      tipo: data.tipo || 'item',
     })
   }
 
@@ -119,6 +121,8 @@ export default function ItemDetails() {
           </div>
           <div className="text-muted-foreground ml-10 flex gap-4">
             <span>Código: {item.code}</span>
+            <span>|</span>
+            <span className="capitalize">Tipo: {item.tipo || 'item'}</span>
             <span>|</span>
             <span>Local: {item.shelfLocation || 'Não definida'}</span>
           </div>

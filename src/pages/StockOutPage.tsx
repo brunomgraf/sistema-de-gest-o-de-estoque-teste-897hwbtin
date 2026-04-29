@@ -84,7 +84,10 @@ export default function StockOutPage() {
     document.title = 'Saida de Estoque ITENS - Oficina Graf'
     const fetchItems = async () => {
       try {
-        const records = await pb.collection('itens').getFullList({ sort: 'nome' })
+        const records = await pb.collection('itens').getFullList({
+          filter: 'tipo = "item"',
+          sort: 'nome',
+        })
         setAvailableItems(records)
       } catch (error) {
         console.error(error)

@@ -81,6 +81,7 @@ export default function InventoryReport() {
 
     const headers = [
       'Código',
+      'Tipo',
       'Nome',
       'Quantidade em estoque',
       'Posição no estoque',
@@ -88,6 +89,7 @@ export default function InventoryReport() {
     ]
     const rows = filteredItems.map((item) => [
       item.sku,
+      item.tipo || 'item',
       item.nome,
       item.quantidade_atual || 0,
       item.posicao_estoque || '',
@@ -222,6 +224,7 @@ export default function InventoryReport() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Código</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead className="text-right">Quantidade</TableHead>
                   <TableHead>Posição</TableHead>
@@ -231,13 +234,13 @@ export default function InventoryReport() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Carregando inventário...
                     </TableCell>
                   </TableRow>
                 ) : filteredItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Nenhum item encontrado com os filtros atuais.
                     </TableCell>
                   </TableRow>
@@ -245,6 +248,7 @@ export default function InventoryReport() {
                   filteredItems.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.sku}</TableCell>
+                      <TableCell className="capitalize">{item.tipo || 'item'}</TableCell>
                       <TableCell>{item.nome}</TableCell>
                       <TableCell className="text-right">{item.quantidade_atual || 0}</TableCell>
                       <TableCell>{item.posicao_estoque || '-'}</TableCell>
@@ -283,7 +287,8 @@ export default function InventoryReport() {
           <thead>
             <tr className="border-y-2 border-slate-800 bg-slate-50 text-slate-900">
               <th className="py-3 px-2 font-bold w-[15%]">Código</th>
-              <th className="py-3 px-2 font-bold w-[35%]">Nome</th>
+              <th className="py-3 px-2 font-bold w-[10%]">Tipo</th>
+              <th className="py-3 px-2 font-bold w-[25%]">Nome</th>
               <th className="py-3 px-2 font-bold text-right w-[15%]">Quantidade em estoque</th>
               <th className="py-3 px-2 font-bold w-[15%]">Posição no estoque</th>
               <th className="py-3 px-2 font-bold w-[20%]">Fornecedor Principal</th>
@@ -293,6 +298,7 @@ export default function InventoryReport() {
             {filteredItems.map((item) => (
               <tr key={item.id} className="border-b border-slate-200">
                 <td className="py-3 px-2 font-medium">{item.sku}</td>
+                <td className="py-3 px-2 capitalize">{item.tipo || 'item'}</td>
                 <td className="py-3 px-2">{item.nome}</td>
                 <td className="py-3 px-2 text-right font-medium">{item.quantidade_atual || 0}</td>
                 <td className="py-3 px-2">{item.posicao_estoque || '-'}</td>
@@ -301,7 +307,7 @@ export default function InventoryReport() {
             ))}
             {filteredItems.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-slate-500 italic">
+                <td colSpan={6} className="py-8 text-center text-slate-500 italic">
                   Nenhum item encontrado.
                 </td>
               </tr>

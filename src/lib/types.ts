@@ -72,6 +72,7 @@ export interface Item {
   collectionName?: string
   nome?: string
   sku?: string
+  tipo?: 'item' | 'ferramenta'
 }
 
 export type MovementType =

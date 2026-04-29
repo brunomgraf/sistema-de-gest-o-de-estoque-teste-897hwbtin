@@ -17,6 +17,13 @@ import { Check, ChevronsUpDown, Plus, Trash2, ImagePlus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -36,6 +43,7 @@ const schema = z
     posicao_estoque: z.string().optional().or(z.literal('')),
     fornecedor_id: z.string().optional().or(z.literal('')),
     foto: z.any().optional(),
+    tipo: z.enum(['item', 'ferramenta'], { required_error: 'Tipo é obrigatório' }),
     fornecedores: z
       .array(
         z.object({
@@ -86,6 +94,7 @@ export function ItemForm({
       pdfUrl: defaultValues?.pdfUrl || '',
       posicao_estoque: defaultValues?.posicao_estoque || defaultValues?.shelfLocation || '',
       fornecedor_id: defaultValues?.fornecedor_id || '',
+      tipo: defaultValues?.tipo || 'item',
       fornecedores: [],
     },
   })
@@ -225,6 +234,27 @@ export function ItemForm({
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="tipo"
+            render={({ field }) => (
+              <FormItem className="col-span-2">
+                <FormLabel>Tipo de Item</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="item">Item Geral / Consumível</SelectItem>
+                    <SelectItem value="ferramenta">Ferramenta</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

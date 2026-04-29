@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-29T23:24:32.756Z",
+  "generatedAt": "2026-04-29T23:34:25.659Z",
   "collections": [
     {
       "name": "users",
@@ -130,9 +130,19 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["item", "ferramenta"]
         }
       ],
-      "indexes": ["CREATE UNIQUE INDEX idx_itens_sku ON itens (sku)"]
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_itens_sku ON itens (sku)",
+        "CREATE INDEX `idx_itens_tipo` ON `itens` (tipo)"
+      ]
     },
     {
       "name": "fornecedores",

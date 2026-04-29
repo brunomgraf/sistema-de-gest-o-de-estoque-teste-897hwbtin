@@ -30,7 +30,7 @@ import { useAuth } from '@/hooks/use-auth'
 const OPERATIONAL_ITEMS = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Saída de Estoque ITENS', url: '/saida-estoque', icon: PackageMinus },
-  { title: 'Saída de Estoque FERRAMENTAS', url: '/producao', icon: Package },
+  { title: 'Itens em Produção', url: '/producao', icon: Package },
   { title: 'Itens / Estoque', url: '/estoque', icon: Package },
   { title: 'Solicitações de Compra', url: '/compras', icon: ShoppingBag },
   { title: 'Ordens de Compra', url: '/ordens-de-compra', icon: FileCheck },

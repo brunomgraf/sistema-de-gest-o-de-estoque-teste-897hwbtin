@@ -11,6 +11,7 @@ import {
   PackageMinus,
   AlertTriangle,
   Users as UsersIcon,
+  ArrowRightLeft,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -18,22 +19,29 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/hooks/use-auth'
 
-const MENU_ITEMS = [
+const OPERATIONAL_ITEMS = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
-  { title: 'Estoque', url: '/estoque', icon: Package },
-  { title: 'Saida de Estoque ITENS', url: '/saida-estoque', icon: PackageMinus },
-  { title: 'Compras', url: '/compras', icon: ShoppingBag },
+  { title: 'Saída de Estoque ITENS', url: '/saida-estoque', icon: PackageMinus },
+  { title: 'Saída de Estoque FERRAMENTAS', url: '/producao', icon: Package },
+  { title: 'Itens / Estoque', url: '/estoque', icon: Package },
+  { title: 'Movimentações', url: '/movimentacoes', icon: ArrowRightLeft },
+  { title: 'Solicitações de Compra', url: '/compras', icon: ShoppingBag },
   { title: 'Ordens de Compra', url: '/ordens-de-compra', icon: FileCheck },
   { title: 'Recebimento', url: '/recebimento', icon: ArrowDownToLine },
-  { title: 'Saida de Estoque FERRAMENTAS', url: '/producao', icon: Package },
-  { title: 'Fornecedores (CRM)', url: '/fornecedores', icon: Truck, roles: ['admin', 'gestor'] },
+  { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['admin', 'gestor'] },
+  { title: 'Colaboradores', url: '/collaborators', icon: UsersIcon },
+]
+
+const ADMIN_ITEMS = [
   { title: 'Relatórios', url: '/relatorios', icon: FileText },
   { title: 'Divergências', url: '/relatorios/divergencias', icon: AlertTriangle },
   {
@@ -41,11 +49,6 @@ const MENU_ITEMS = [
     url: '/relatorios/inventario',
     icon: FileCheck,
     roles: ['admin', 'gestor'],
-  },
-  {
-    title: 'Colaboradores',
-    url: '/collaborators',
-    icon: UsersIcon,
   },
   {
     title: 'Configurações / Usuários',
@@ -72,9 +75,12 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
+          <SidebarGroupLabel className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Operacional
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="mt-4 gap-2 px-2">
-              {MENU_ITEMS.filter(
+            <SidebarMenu className="mt-2 gap-2 px-2">
+              {OPERATIONAL_ITEMS.filter(
                 (item) => !item.roles || item.roles.includes(user?.role || ''),
               ).map((item) => {
                 const isActive =
@@ -83,8 +89,40 @@ export function AppSidebar() {
                     : location.pathname.startsWith(item.url)
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive} className="h-10">
-                      <Link to={item.url}>
+                    <SidebarMenuButton asChild isActive={isActive} className="h-11">
+                      <Link to={item.url} aria-label={item.title}>
+                        <item.icon className="h-5 w-5 shrink-0" />
+                        <span className="text-base font-medium truncate" title={item.title}>
+                          {item.title}
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator className="my-2" />
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Administração
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="mt-2 gap-2 px-2">
+              {ADMIN_ITEMS.filter(
+                (item) => !item.roles || item.roles.includes(user?.role || ''),
+              ).map((item) => {
+                const isActive =
+                  item.url === '/'
+                    ? location.pathname === '/'
+                    : location.pathname.startsWith(item.url)
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={isActive} className="h-11">
+                      <Link to={item.url} aria-label={item.title}>
                         <item.icon className="h-5 w-5 shrink-0" />
                         <span className="text-base font-medium truncate" title={item.title}>
                           {item.title}

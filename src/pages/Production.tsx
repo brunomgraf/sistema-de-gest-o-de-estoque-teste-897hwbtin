@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Package, AlertCircle, RefreshCcw } from 'lucide-react'
+import { Package, AlertCircle, RefreshCcw, Download, FilterX } from 'lucide-react'
+import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
@@ -293,6 +294,12 @@ export default function ProductionItemsPage() {
   const [isOutModalOpen, setIsOutModalOpen] = useState(false)
   const [returnItem, setReturnItem] = useState<any>(null)
 
+  // Filters state
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
+  const [selectedColaborador, setSelectedColaborador] = useState<string>('all')
+  const [selectedItem, setSelectedItem] = useState<string>('all')
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -324,9 +331,77 @@ export default function ProductionItemsPage() {
   })
 
   const activeItems = getActiveProductionItems(movements)
-  const historyItems = [...movements].sort(
-    (a, b) => new Date(b.created || 0).getTime() - new Date(a.created || 0).getTime(),
-  )
+  const historyItems = movements
+    .filter((m) => {
+      if (
+        selectedColaborador &&
+        selectedColaborador !== 'all' &&
+        m.colaborador_id !== selectedColaborador
+      )
+        return false
+      if (selectedItem && selectedItem !== 'all' && m.item_id !== selectedItem) return false
+
+      const movDateStr = m.data_movimento || m.created
+      if (movDateStr) {
+        const movDate = new Date(movDateStr)
+        if (startDate) {
+          const start = new Date(`${startDate}T00:00:00`)
+          if (movDate < start) return false
+        }
+        if (endDate) {
+          const end = new Date(`${endDate}T23:59:59`)
+          if (movDate > end) return false
+        }
+      }
+      return true
+    })
+    .sort((a, b) => new Date(b.created || 0).getTime() - new Date(a.created || 0).getTime())
+
+  const clearFilters = () => {
+    setStartDate('')
+    setEndDate('')
+    setSelectedColaborador('all')
+    setSelectedItem('all')
+  }
+
+  const exportCSV = () => {
+    if (historyItems.length === 0) {
+      toast.error('Nenhum dado para exportar')
+      return
+    }
+    const headers = ['Tipo', 'Data', 'Colaborador', 'Item', 'Quantidade', 'Motivo/OS']
+    const rows = historyItems.map((item) => {
+      const tipo = item.tipo_movimento === 'producao_saida' ? 'Saída' : 'Retorno'
+      const date =
+        item.data_movimento || item.created
+          ? format(new Date(item.data_movimento || item.created || 0), 'dd/MM/yyyy HH:mm', {
+              locale: ptBR,
+            })
+          : '-'
+      const colab = item.expand?.colaborador_id?.nome_completo || '-'
+      const itemName = item.expand?.item_id?.nome || '-'
+      const qtd = item.quantidade || 0
+      const obs = item.motivo || '-'
+      return [tipo, date, colab, itemName, qtd, obs]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(',')
+    })
+
+    const csvContent = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csvContent], {
+      type: 'text/csv;charset=utf-8;',
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute(
+      'download',
+      `historico_saida_ferramentas_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`,
+    )
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   if (loading) {
     return (
@@ -460,10 +535,69 @@ export default function ProductionItemsPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="historico">
+        <TabsContent value="historico" className="space-y-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="space-y-2">
+                  <Label>Data Inicial</Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data Final</Label>
+                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Colaborador</Label>
+                  <Select value={selectedColaborador} onValueChange={setSelectedColaborador}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {collaborators.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome_completo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Item</Label>
+                  <Select value={selectedItem} onValueChange={setSelectedItem}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {items.map((i) => (
+                        <SelectItem key={i.id} value={i.id}>
+                          {i.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row justify-end gap-2">
+                <Button variant="outline" onClick={clearFilters}>
+                  <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
+                </Button>
+                <Button onClick={exportCSV}>
+                  <Download className="mr-2 h-4 w-4" /> Extrair Relatório
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {historyItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center min-h-[300px] border rounded-lg bg-muted/20">
-              <p className="text-muted-foreground">Nenhum histórico encontrado.</p>
+              <p className="text-muted-foreground">Nenhum registro encontrado.</p>
             </div>
           ) : isMobile ? (
             <div className="space-y-4">

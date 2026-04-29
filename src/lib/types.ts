@@ -93,6 +93,7 @@ export interface Movement {
   userId: string
   solicitante?: string
   ordem_servico?: string
+  ordem_producao?: string
   unitPrice?: number
   // PocketBase snake_case properties
   item_id?: string

@@ -15,6 +15,7 @@ export const createProducaoSaida = async (data: {
   quantidade: number
   motivo?: string
   usuario_id: string
+  ordem_producao?: string
 }) => {
   return pb.collection('movimentacoes').create({
     ...data,

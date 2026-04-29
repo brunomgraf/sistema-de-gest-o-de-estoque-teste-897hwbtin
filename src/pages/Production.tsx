@@ -64,6 +64,7 @@ const outSchema = z.object({
   item_id: z.string().min(1, 'Item é obrigatório'),
   colaborador_id: z.string().min(1, 'Colaborador é obrigatório'),
   quantidade: z.coerce.number().positive('Quantidade deve ser maior que 0'),
+  ordem_producao: z.string().optional(),
   motivo: z.string().optional(),
 })
 
@@ -75,13 +76,20 @@ const returnSchema = z.object({
 function ProductionOutModal({ isOpen, onClose, items, collaborators, userId }: any) {
   const form = useForm({
     resolver: zodResolver(outSchema),
-    defaultValues: { item_id: '', colaborador_id: '', quantidade: 1, motivo: '' },
+    defaultValues: {
+      item_id: '',
+      colaborador_id: '',
+      quantidade: 1,
+      ordem_producao: '',
+      motivo: '',
+    },
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    if (isOpen) form.reset({ item_id: '', colaborador_id: '', quantidade: 1, motivo: '' })
+    if (isOpen)
+      form.reset({ item_id: '', colaborador_id: '', quantidade: 1, ordem_producao: '', motivo: '' })
   }, [isOpen, form])
 
   const onSubmit = async (data: any) => {
@@ -156,19 +164,34 @@ function ProductionOutModal({ isOpen, onClose, items, collaborators, userId }: a
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="quantidade"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Quantidade</FormLabel>
-                  <FormControl>
-                    <Input type="number" min="1" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="quantidade"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quantidade</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="1" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="ordem_producao"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ordem de Produção</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: OP-1234" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="motivo"
@@ -299,6 +322,7 @@ export default function ProductionItemsPage() {
   const [endDate, setEndDate] = useState<string>('')
   const [selectedColaborador, setSelectedColaborador] = useState<string>('all')
   const [selectedItem, setSelectedItem] = useState<string>('all')
+  const [ordemProducaoFilter, setOrdemProducaoFilter] = useState<string>('')
 
   const loadData = async () => {
     try {
@@ -322,7 +346,7 @@ export default function ProductionItemsPage() {
   }
 
   useEffect(() => {
-    document.title = 'Saida de Estoque FERRAMENTAS - Oficina Graf'
+    document.title = 'Saída de Estoque FERRAMENTAS - Oficina Graf'
     loadData()
   }, [])
 
@@ -340,6 +364,14 @@ export default function ProductionItemsPage() {
       )
         return false
       if (selectedItem && selectedItem !== 'all' && m.item_id !== selectedItem) return false
+
+      if (
+        ordemProducaoFilter &&
+        (!m.ordem_producao ||
+          !m.ordem_producao.toLowerCase().includes(ordemProducaoFilter.toLowerCase()))
+      ) {
+        return false
+      }
 
       const movDateStr = m.data_movimento || m.created
       if (movDateStr) {
@@ -362,6 +394,7 @@ export default function ProductionItemsPage() {
     setEndDate('')
     setSelectedColaborador('all')
     setSelectedItem('all')
+    setOrdemProducaoFilter('')
   }
 
   const exportCSV = () => {
@@ -369,7 +402,15 @@ export default function ProductionItemsPage() {
       toast.error('Nenhum dado para exportar')
       return
     }
-    const headers = ['Tipo', 'Data', 'Colaborador', 'Item', 'Quantidade', 'Motivo/OS']
+    const headers = [
+      'Tipo',
+      'Data',
+      'Colaborador',
+      'Item',
+      'Ordem de Produção',
+      'Quantidade',
+      'Motivo/OS',
+    ]
     const rows = historyItems.map((item) => {
       const tipo = item.tipo_movimento === 'producao_saida' ? 'Saída' : 'Retorno'
       const date =
@@ -380,9 +421,10 @@ export default function ProductionItemsPage() {
           : '-'
       const colab = item.expand?.colaborador_id?.nome_completo || '-'
       const itemName = item.expand?.item_id?.nome || '-'
+      const op = item.ordem_producao || '-'
       const qtd = item.quantidade || 0
       const obs = item.motivo || '-'
-      return [tipo, date, colab, itemName, qtd, obs]
+      return [tipo, date, colab, itemName, op, qtd, obs]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
         .join(',')
     })
@@ -428,7 +470,7 @@ export default function ProductionItemsPage() {
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Saida de Estoque FERRAMENTAS</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Saída de Estoque FERRAMENTAS</h1>
           <p className="text-muted-foreground">
             Controle simples de ferramentas e itens que saem para uso e retornam ao estoque.
           </p>
@@ -465,6 +507,9 @@ export default function ProductionItemsPage() {
                     <div className="text-sm text-muted-foreground">
                       Colaborador: {item.expand?.colaborador_id?.nome_completo}
                     </div>
+                    {item.ordem_producao && (
+                      <div className="text-sm text-muted-foreground">OP: {item.ordem_producao}</div>
+                    )}
                     <div className="text-xs text-muted-foreground">
                       Saída:{' '}
                       {item.created
@@ -495,6 +540,7 @@ export default function ProductionItemsPage() {
                   <TableRow>
                     <TableHead>Item</TableHead>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>Ordem Prod.</TableHead>
                     <TableHead>Qtd</TableHead>
                     <TableHead>Data de Saída</TableHead>
                     <TableHead>Observação</TableHead>
@@ -506,6 +552,7 @@ export default function ProductionItemsPage() {
                     <TableRow key={`${item.item_id}-${item.colaborador_id}`}>
                       <TableCell className="font-medium">{item.expand?.item_id?.nome}</TableCell>
                       <TableCell>{item.expand?.colaborador_id?.nome_completo}</TableCell>
+                      <TableCell>{item.ordem_producao || '-'}</TableCell>
                       <TableCell>{item.currentQuantity}</TableCell>
                       <TableCell>
                         {item.created
@@ -538,7 +585,7 @@ export default function ProductionItemsPage() {
         <TabsContent value="historico" className="space-y-4">
           <Card>
             <CardContent className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                 <div className="space-y-2">
                   <Label>Data Inicial</Label>
                   <Input
@@ -583,6 +630,15 @@ export default function ProductionItemsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Ordem de Produção</Label>
+                  <Input
+                    type="text"
+                    placeholder="Filtrar por Ordem de Produção"
+                    value={ordemProducaoFilter}
+                    onChange={(e) => setOrdemProducaoFilter(e.target.value)}
+                  />
+                </div>
               </div>
               <div className="flex flex-col sm:flex-row justify-end gap-2">
                 <Button variant="outline" onClick={clearFilters}>
@@ -622,6 +678,9 @@ export default function ProductionItemsPage() {
                     <div className="text-sm">
                       Colab: {item.expand?.colaborador_id?.nome_completo}
                     </div>
+                    {item.ordem_producao && (
+                      <div className="text-sm">OP: {item.ordem_producao}</div>
+                    )}
                     <div className="text-sm">Qtd: {item.quantidade}</div>
                     {item.motivo && (
                       <div className="text-sm text-muted-foreground truncate">{item.motivo}</div>
@@ -638,6 +697,7 @@ export default function ProductionItemsPage() {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Item</TableHead>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>Ordem Prod.</TableHead>
                     <TableHead>Qtd</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Observação</TableHead>
@@ -658,6 +718,7 @@ export default function ProductionItemsPage() {
                       </TableCell>
                       <TableCell className="font-medium">{item.expand?.item_id?.nome}</TableCell>
                       <TableCell>{item.expand?.colaborador_id?.nome_completo}</TableCell>
+                      <TableCell>{item.ordem_producao || '-'}</TableCell>
                       <TableCell>{item.quantidade}</TableCell>
                       <TableCell>
                         {item.created

@@ -28,11 +28,11 @@ import { useAuth } from '@/hooks/use-auth'
 const MENU_ITEMS = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Estoque', url: '/estoque', icon: Package },
-  { title: 'Saída de Estoque', url: '/saida-estoque', icon: PackageMinus },
+  { title: 'Saida de Estoque ITENS', url: '/saida-estoque', icon: PackageMinus },
   { title: 'Compras', url: '/compras', icon: ShoppingBag },
   { title: 'Ordens de Compra', url: '/ordens-de-compra', icon: FileCheck },
   { title: 'Recebimento', url: '/recebimento', icon: ArrowDownToLine },
-  { title: 'Produção', url: '/producao', icon: Package },
+  { title: 'Saida de Estoque FERRAMENTAS', url: '/producao', icon: Package },
   { title: 'Fornecedores (CRM)', url: '/fornecedores', icon: Truck, roles: ['admin', 'gestor'] },
   { title: 'Relatórios', url: '/relatorios', icon: FileText },
   { title: 'Divergências', url: '/relatorios/divergencias', icon: AlertTriangle },
@@ -85,8 +85,10 @@ export function AppSidebar() {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive} className="h-10">
                       <Link to={item.url}>
-                        <item.icon className="h-5 w-5" />
-                        <span className="text-base font-medium">{item.title}</span>
+                        <item.icon className="h-5 w-5 shrink-0" />
+                        <span className="text-base font-medium truncate" title={item.title}>
+                          {item.title}
+                        </span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

@@ -315,6 +315,7 @@ export default function ProductionItemsPage() {
   }
 
   useEffect(() => {
+    document.title = 'Saida de Estoque FERRAMENTAS - Oficina Graf'
     loadData()
   }, [])
 
@@ -352,7 +353,7 @@ export default function ProductionItemsPage() {
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Itens em Produção</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Saida de Estoque FERRAMENTAS</h1>
           <p className="text-muted-foreground">
             Controle simples de ferramentas e itens que saem para uso e retornam ao estoque.
           </p>

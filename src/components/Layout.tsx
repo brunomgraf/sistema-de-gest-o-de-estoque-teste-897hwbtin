@@ -22,6 +22,10 @@ export default function Layout() {
   if (!user) return <Navigate to="/login" replace />
 
   const pathnames = location.pathname.split('/').filter((x) => x)
+  const breadcrumbNameMap: Record<string, string> = {
+    'saida-estoque': 'Saida de Estoque ITENS',
+    producao: 'Saida de Estoque FERRAMENTAS',
+  }
 
   const handleLogout = () => {
     logout()
@@ -44,7 +48,8 @@ export default function Layout() {
                 {pathnames.map((value, index) => {
                   const to = `/${pathnames.slice(0, index + 1).join('/')}`
                   const isLast = index === pathnames.length - 1
-                  const title = value.charAt(0).toUpperCase() + value.slice(1)
+                  const title =
+                    breadcrumbNameMap[value] || value.charAt(0).toUpperCase() + value.slice(1)
                   return (
                     <div key={to} className="flex items-center gap-2">
                       <BreadcrumbSeparator />

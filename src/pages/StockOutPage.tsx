@@ -81,6 +81,7 @@ export default function StockOutPage() {
   })
 
   useEffect(() => {
+    document.title = 'Saida de Estoque ITENS - Oficina Graf'
     const fetchItems = async () => {
       try {
         const records = await pb.collection('itens').getFullList({ sort: 'nome' })
@@ -164,7 +165,7 @@ export default function StockOutPage() {
           </Button>
         </Link>
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Saída de Estoque</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Saida de Estoque ITENS</h2>
           <p className="text-muted-foreground">
             Registre a retirada de múltiplos itens do estoque.
           </p>

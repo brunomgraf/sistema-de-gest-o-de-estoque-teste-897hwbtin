@@ -3,7 +3,7 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { format } from 'date-fns'
-import { CalendarIcon, Plus, Trash2, ArrowLeft } from 'lucide-react'
+import { CalendarIcon, Plus, Trash2, ArrowLeft, Check, ChevronsUpDown } from 'lucide-react'
 import { useNavigate, Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,14 @@ import {
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { Calendar } from '@/components/ui/calendar'
 import {
   Select,
@@ -53,6 +61,8 @@ type FormValues = z.infer<typeof schema>
 export default function StockOutPage() {
   const navigate = useNavigate()
   const [availableItems, setAvailableItems] = useState<any[]>([])
+  const [collaborators, setCollaborators] = useState<any[]>([])
+  const [loadingCollabs, setLoadingCollabs] = useState(true)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -80,7 +90,20 @@ export default function StockOutPage() {
         toast.error('Erro ao carregar itens')
       }
     }
+
+    const fetchCollabs = async () => {
+      try {
+        const records = await pb.collection('colaboradores').getFullList({ sort: 'nome_completo' })
+        setCollaborators(records)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setLoadingCollabs(false)
+      }
+    }
+
     fetchItems()
+    fetchCollabs()
   }, [])
 
   const onSubmit = async (data: FormValues) => {
@@ -160,11 +183,68 @@ export default function StockOutPage() {
                   control={form.control}
                   name="solicitante"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Solicitante *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nome do solicitante" {...field} />
-                      </FormControl>
+                    <FormItem className="flex flex-col pt-2.5">
+                      <FormLabel className="mb-2">Solicitante *</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                'w-full justify-between',
+                                !field.value && 'text-muted-foreground',
+                              )}
+                              disabled={loadingCollabs || collaborators.length === 0}
+                            >
+                              {field.value
+                                ? collaborators.find((c) => c.nome_completo === field.value)
+                                    ?.nome_completo || field.value
+                                : loadingCollabs
+                                  ? 'Carregando...'
+                                  : collaborators.length === 0
+                                    ? 'Nenhum colaborador cadastrado'
+                                    : 'Selecione um colaborador'}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="p-0"
+                          align="start"
+                          style={{ width: 'var(--radix-popover-trigger-width)' }}
+                        >
+                          <Command>
+                            <CommandInput placeholder="Buscar colaborador..." />
+                            <CommandList>
+                              <CommandEmpty>Nenhum colaborador encontrado.</CommandEmpty>
+                              <CommandGroup>
+                                {collaborators.map((c) => (
+                                  <CommandItem
+                                    value={c.nome_completo}
+                                    key={c.id}
+                                    onSelect={() => {
+                                      form.setValue('solicitante', c.nome_completo, {
+                                        shouldValidate: true,
+                                      })
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        'mr-2 h-4 w-4',
+                                        c.nome_completo === field.value
+                                          ? 'opacity-100'
+                                          : 'opacity-0',
+                                      )}
+                                    />
+                                    {c.nome_completo}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { format } from 'date-fns'
+import { format, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Package, Plus, RefreshCw, AlertCircle } from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -46,6 +46,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
@@ -191,10 +192,18 @@ export default function ProductionItemsPage() {
     )
   }
 
-  const activeItems = getActiveProductionItems(movements)
+  const now = new Date()
+  const activeItems = getActiveProductionItems(movements).map((item) => {
+    const daysInUse = differenceInDays(now, new Date(item.data_movimento || item.created!))
+    const isDelayed = daysInUse > 7
+    return { ...item, daysInUse, isDelayed }
+  })
+
   const historyItems = [...movements].sort(
     (a, b) => new Date(b.created!).getTime() - new Date(a.created!).getTime(),
   )
+
+  const delayedCount = activeItems.filter((i) => i.isDelayed).length
 
   return (
     <div className="space-y-6 p-4 sm:p-6 max-w-6xl mx-auto pb-20">
@@ -222,6 +231,16 @@ export default function ProductionItemsPage() {
         </TabsList>
 
         <TabsContent value="em-uso" className="mt-0">
+          {delayedCount > 0 && (
+            <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-3 text-destructive">
+              <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <span className="font-medium text-sm sm:text-base">
+                {delayedCount} {delayedCount === 1 ? 'item está' : 'itens estão'} com retorno
+                atrasado (mais de 7 dias).
+              </span>
+            </div>
+          )}
+
           {activeItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/20 border-dashed mt-4 mx-1">
               <Package className="h-12 w-12 text-muted-foreground mb-4" />
@@ -240,21 +259,52 @@ export default function ProductionItemsPage() {
           ) : isMobile ? (
             <div className="grid gap-4 mt-4">
               {activeItems.map((item) => (
-                <Card key={`${item.item_id}-${item.colaborador_id}`}>
+                <Card
+                  key={`${item.item_id}-${item.colaborador_id}`}
+                  className={cn(item.isDelayed && 'border-destructive/50 bg-destructive/5')}
+                >
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base leading-tight">
-                      {item.expand?.item_id?.nome}
-                    </CardTitle>
-                    <CardDescription>{item.expand?.colaborador_id?.nome_completo}</CardDescription>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-base leading-tight">
+                          {item.expand?.item_id?.nome}
+                        </CardTitle>
+                        <CardDescription>
+                          {item.expand?.colaborador_id?.nome_completo}
+                        </CardDescription>
+                      </div>
+                      {item.isDelayed && (
+                        <Badge
+                          variant="destructive"
+                          className="flex items-center gap-1 shrink-0"
+                          aria-label="Item com retorno atrasado"
+                        >
+                          <AlertCircle className="h-3 w-3" />
+                          Atrasado
+                        </Badge>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="flex justify-between items-center mb-4 text-sm">
                       <span className="font-medium bg-muted px-2 py-1 rounded">
                         Qtd: {item.currentQuantity}
                       </span>
-                      <span className="text-muted-foreground text-xs">
-                        {format(new Date(item.created!), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span className="text-muted-foreground text-xs">
+                          {format(new Date(item.created!), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                        </span>
+                        <span
+                          className={cn(
+                            'text-xs mt-0.5 font-medium',
+                            item.isDelayed ? 'text-destructive' : 'text-muted-foreground',
+                          )}
+                        >
+                          {item.isDelayed
+                            ? `Atrasado: ${item.daysInUse} dias`
+                            : `Há ${item.daysInUse} ${item.daysInUse === 1 ? 'dia' : 'dias'}`}
+                        </span>
+                      </div>
                     </div>
                     {item.motivo && (
                       <p className="text-sm text-muted-foreground mb-4 bg-muted/30 p-2 rounded">
@@ -288,14 +338,48 @@ export default function ProductionItemsPage() {
                 </TableHeader>
                 <TableBody>
                   {activeItems.map((item) => (
-                    <TableRow key={`${item.item_id}-${item.colaborador_id}`}>
-                      <TableCell className="font-medium">{item.expand?.item_id?.nome}</TableCell>
+                    <TableRow
+                      key={`${item.item_id}-${item.colaborador_id}`}
+                      className={cn(item.isDelayed && 'bg-destructive/5 hover:bg-destructive/10')}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {item.expand?.item_id?.nome}
+                          {item.isDelayed && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertCircle
+                                  className="h-4 w-4 text-destructive shrink-0 cursor-help"
+                                  aria-label="Item com retorno atrasado"
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Retorno atrasado ({'>'} 7 dias)</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{item.expand?.colaborador_id?.nome_completo}</TableCell>
                       <TableCell>
                         <Badge variant="secondary">{item.currentQuantity}</Badge>
                       </TableCell>
                       <TableCell>
-                        {format(new Date(item.created!), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                        <div className="flex flex-col">
+                          <span>
+                            {format(new Date(item.created!), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                          </span>
+                          <span
+                            className={cn(
+                              'text-xs font-medium',
+                              item.isDelayed ? 'text-destructive' : 'text-muted-foreground',
+                            )}
+                          >
+                            {item.isDelayed
+                              ? `Atrasado: ${item.daysInUse} dias`
+                              : `Há ${item.daysInUse} ${item.daysInUse === 1 ? 'dia' : 'dias'}`}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate" title={item.motivo}>
                         {item.motivo || '-'}

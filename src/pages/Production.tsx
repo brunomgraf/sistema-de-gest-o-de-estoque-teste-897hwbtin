@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { format, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Package, Plus, RefreshCw, AlertCircle } from 'lucide-react'
+import { Package, Plus, RefreshCw, AlertCircle, Filter as FilterIcon } from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
 
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
@@ -77,8 +78,23 @@ export default function ProductionItemsPage() {
   const [movements, setMovements] = useState<Movement[]>([])
   const [items, setItems] = useState<Item[]>([])
   const [collaborators, setCollaborators] = useState<Collaborator[]>([])
+
   const [loading, setLoading] = useState(true)
+  const [isFetching, setIsFetching] = useState(false)
   const [error, setError] = useState(false)
+  const initialLoadDone = useRef(false)
+
+  const [filterColaborador, setFilterColaborador] = useState<string>('all')
+  const [filterOP, setFilterOP] = useState<string>('')
+  const [filterStartDate, setFilterStartDate] = useState<string>('')
+  const [filterEndDate, setFilterEndDate] = useState<string>('')
+
+  const [debouncedOP, setDebouncedOP] = useState(filterOP)
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedOP(filterOP), 500)
+    return () => clearTimeout(t)
+  }, [filterOP])
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [returnItem, setReturnItem] = useState<(Movement & { currentQuantity: number }) | null>(
@@ -103,26 +119,39 @@ export default function ProductionItemsPage() {
 
   const loadData = async () => {
     try {
+      if (!initialLoadDone.current) setLoading(true)
+      else setIsFetching(true)
       setError(false)
-      const [movs, its, cols] = await Promise.all([
-        fetchProductionMovements(),
-        pb.collection('itens').getFullList<Item>({ sort: 'nome' }),
-        pb.collection('colaboradores').getFullList<Collaborator>({ sort: 'nome_completo' }),
-      ])
+
+      const movs = await fetchProductionMovements({
+        colaborador_id: filterColaborador,
+        ordem_producao: debouncedOP,
+        startDate: filterStartDate,
+        endDate: filterEndDate,
+      })
       setMovements(movs)
-      setItems(its)
-      setCollaborators(cols)
+
+      if (!initialLoadDone.current) {
+        const [its, cols] = await Promise.all([
+          pb.collection('itens').getFullList<Item>({ sort: 'nome' }),
+          pb.collection('colaboradores').getFullList<Collaborator>({ sort: 'nome_completo' }),
+        ])
+        setItems(its)
+        setCollaborators(cols)
+        initialLoadDone.current = true
+      }
     } catch (e) {
       console.error(e)
       setError(true)
     } finally {
       setLoading(false)
+      setIsFetching(false)
     }
   }
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [filterColaborador, debouncedOP, filterStartDate, filterEndDate])
 
   useRealtime('movimentacoes', () => {
     loadData()
@@ -213,6 +242,78 @@ export default function ProductionItemsPage() {
 
   const delayedCount = activeItems.filter((i) => i.isDelayed).length
 
+  const hasActiveFilters =
+    filterColaborador !== 'all' || filterOP !== '' || filterStartDate !== '' || filterEndDate !== ''
+  const clearFilters = () => {
+    setFilterColaborador('all')
+    setFilterOP('')
+    setFilterStartDate('')
+    setFilterEndDate('')
+  }
+
+  const FiltersForm = () => (
+    <div className="space-y-4 w-full">
+      <div className="space-y-2">
+        <label className="text-sm font-medium leading-none text-muted-foreground">
+          Colaborador
+        </label>
+        <Select value={filterColaborador} onValueChange={setFilterColaborador}>
+          <SelectTrigger className="h-10">
+            <SelectValue placeholder="Todos os colaboradores" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os colaboradores</SelectItem>
+            {collaborators.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.nome_completo}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium leading-none text-muted-foreground">
+          Ordem de Produção (OP)
+        </label>
+        <Input
+          placeholder="Buscar OP..."
+          value={filterOP}
+          onChange={(e) => setFilterOP(e.target.value)}
+          className="h-10"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium leading-none text-muted-foreground">
+            Data Inicial
+          </label>
+          <Input
+            type="date"
+            value={filterStartDate}
+            onChange={(e) => setFilterStartDate(e.target.value)}
+            className="h-10"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium leading-none text-muted-foreground">
+            Data Final
+          </label>
+          <Input
+            type="date"
+            value={filterEndDate}
+            onChange={(e) => setFilterEndDate(e.target.value)}
+            className="h-10"
+          />
+        </div>
+      </div>
+      {hasActiveFilters && (
+        <Button variant="outline" className="w-full mt-2" onClick={clearFilters}>
+          Limpar Filtros
+        </Button>
+      )}
+    </div>
+  )
+
   return (
     <div className="space-y-6 p-4 sm:p-6 max-w-6xl mx-auto pb-20">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -228,6 +329,91 @@ export default function ProductionItemsPage() {
         </Button>
       </div>
 
+      <div className="hidden md:flex flex-wrap items-end gap-4 mb-6 bg-card p-4 rounded-lg border">
+        <div className="w-[220px] space-y-2">
+          <label className="text-sm font-medium leading-none text-muted-foreground">
+            Colaborador
+          </label>
+          <Select value={filterColaborador} onValueChange={setFilterColaborador}>
+            <SelectTrigger className="h-10">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {collaborators.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.nome_completo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-[180px] space-y-2">
+          <label className="text-sm font-medium leading-none text-muted-foreground">
+            Ordem de Produção
+          </label>
+          <Input
+            className="h-10"
+            placeholder="Buscar OP..."
+            value={filterOP}
+            onChange={(e) => setFilterOP(e.target.value)}
+          />
+        </div>
+        <div className="w-[150px] space-y-2">
+          <label className="text-sm font-medium leading-none text-muted-foreground">
+            Data Inicial
+          </label>
+          <Input
+            className="h-10"
+            type="date"
+            value={filterStartDate}
+            onChange={(e) => setFilterStartDate(e.target.value)}
+          />
+        </div>
+        <div className="w-[150px] space-y-2">
+          <label className="text-sm font-medium leading-none text-muted-foreground">
+            Data Final
+          </label>
+          <Input
+            className="h-10"
+            type="date"
+            value={filterEndDate}
+            onChange={(e) => setFilterEndDate(e.target.value)}
+          />
+        </div>
+        {hasActiveFilters && (
+          <Button variant="ghost" className="h-10 px-4" onClick={clearFilters}>
+            Limpar Filtros
+          </Button>
+        )}
+      </div>
+
+      <div className="md:hidden mb-6">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" className="w-full justify-between">
+              <span className="flex items-center">
+                <FilterIcon className="mr-2 h-4 w-4" />
+                Filtros
+              </span>
+              {hasActiveFilters && (
+                <Badge variant="secondary" className="px-1.5 rounded-sm">
+                  Ativo
+                </Badge>
+              )}
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+            <SheetHeader>
+              <SheetTitle>Filtros</SheetTitle>
+            </SheetHeader>
+            <div className="mt-6">
+              <FiltersForm />
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+
       <Tabs defaultValue="em-uso" className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-[400px] mb-4 h-auto p-1">
           <TabsTrigger value="em-uso" className="min-h-[40px]">
@@ -239,165 +425,99 @@ export default function ProductionItemsPage() {
         </TabsList>
 
         <TabsContent value="em-uso" className="mt-0">
-          {delayedCount > 0 && (
-            <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-3 text-destructive">
-              <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
-              <span className="font-medium text-sm sm:text-base">
-                {delayedCount} {delayedCount === 1 ? 'item está' : 'itens estão'} com retorno
-                atrasado (mais de 7 dias).
-              </span>
-            </div>
-          )}
+          <div
+            className={cn(
+              'transition-opacity duration-200',
+              isFetching && 'opacity-50 pointer-events-none',
+            )}
+          >
+            {delayedCount > 0 && (
+              <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-3 text-destructive">
+                <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
+                <span className="font-medium text-sm sm:text-base">
+                  {delayedCount} {delayedCount === 1 ? 'item está' : 'itens estão'} com retorno
+                  atrasado (mais de 7 dias).
+                </span>
+              </div>
+            )}
 
-          {activeItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/20 border-dashed mt-4 mx-1">
-              <Package className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium">Nenhum item em produção</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Todos os itens e ferramentas estão no estoque.
-              </p>
-              <Button
-                onClick={() => setIsCheckoutOpen(true)}
-                variant="outline"
-                className="min-h-[44px]"
-              >
-                <Plus className="mr-2 h-4 w-4" /> Registrar Saída
-              </Button>
-            </div>
-          ) : isMobile ? (
-            <div className="grid gap-4 mt-4">
-              {activeItems.map((item) => (
-                <Card
-                  key={`${item.item_id}-${item.colaborador_id}`}
-                  className={cn(item.isDelayed && 'border-destructive/50 bg-destructive/5')}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-base leading-tight">
-                          {item.expand?.item_id?.nome}
-                        </CardTitle>
-                        <CardDescription>
-                          {item.expand?.colaborador_id?.nome_completo}
-                          {item.ordem_producao && (
-                            <span className="block mt-0.5 text-xs">
-                              OP:{' '}
-                              <span className="font-medium text-foreground">
-                                {item.ordem_producao}
-                              </span>
-                            </span>
-                          )}
-                        </CardDescription>
-                      </div>
-                      {item.isDelayed && (
-                        <Badge
-                          variant="destructive"
-                          className="flex items-center gap-1 shrink-0"
-                          aria-label="Item com retorno atrasado"
-                        >
-                          <AlertCircle className="h-3 w-3" />
-                          Atrasado
-                        </Badge>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-center mb-4 text-sm">
-                      <span className="font-medium bg-muted px-2 py-1 rounded">
-                        Qtd: {item.currentQuantity}
-                      </span>
-                      <div className="flex flex-col items-end">
-                        <span className="text-muted-foreground text-xs">
-                          {format(new Date(item.created!), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                        </span>
-                        <span
-                          className={cn(
-                            'text-xs mt-0.5 font-medium',
-                            item.isDelayed ? 'text-destructive' : 'text-muted-foreground',
-                          )}
-                        >
-                          {item.isDelayed
-                            ? `Atrasado: ${item.daysInUse} dias`
-                            : `Há ${item.daysInUse} ${item.daysInUse === 1 ? 'dia' : 'dias'}`}
-                        </span>
-                      </div>
-                    </div>
-                    {item.motivo && (
-                      <p className="text-sm text-muted-foreground mb-4 bg-muted/30 p-2 rounded">
-                        {item.motivo}
-                      </p>
-                    )}
-                    <Button
-                      className="w-full min-h-[44px]"
-                      variant="secondary"
-                      onClick={() => setReturnItem(item)}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Registrar Retorno
+            {activeItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/20 border-dashed mt-4 mx-1">
+                <Package className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">Nenhum item em produção</h3>
+                {hasActiveFilters ? (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Nenhum resultado encontrado para os filtros selecionados.
+                    </p>
+                    <Button onClick={clearFilters} variant="outline" className="min-h-[44px]">
+                      Limpar Filtros
                     </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card className="mt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead>Colaborador</TableHead>
-                    <TableHead>OP</TableHead>
-                    <TableHead>Qtd</TableHead>
-                    <TableHead>Data de Saída</TableHead>
-                    <TableHead>Observação</TableHead>
-                    <TableHead className="text-right">Ação</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {activeItems.map((item) => (
-                    <TableRow
-                      key={`${item.item_id}-${item.colaborador_id}`}
-                      className={cn(item.isDelayed && 'bg-destructive/5 hover:bg-destructive/10')}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Todos os itens e ferramentas estão no estoque.
+                    </p>
+                    <Button
+                      onClick={() => setIsCheckoutOpen(true)}
+                      variant="outline"
+                      className="min-h-[44px]"
                     >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {item.expand?.item_id?.nome}
-                          {item.isDelayed && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <AlertCircle
-                                  className="h-4 w-4 text-destructive shrink-0 cursor-help"
-                                  aria-label="Item com retorno atrasado"
-                                />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Retorno atrasado ({'>'} 7 dias)</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
+                      <Plus className="mr-2 h-4 w-4" /> Registrar Saída
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : isMobile ? (
+              <div className="grid gap-4 mt-4">
+                {activeItems.map((item) => (
+                  <Card
+                    key={`${item.item_id}-${item.colaborador_id}`}
+                    className={cn(item.isDelayed && 'border-destructive/50 bg-destructive/5')}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-base leading-tight">
+                            {item.expand?.item_id?.nome}
+                          </CardTitle>
+                          <CardDescription>
+                            {item.expand?.colaborador_id?.nome_completo}
+                            {item.ordem_producao && (
+                              <span className="block mt-0.5 text-xs">
+                                OP:{' '}
+                                <span className="font-medium text-foreground">
+                                  {item.ordem_producao}
+                                </span>
+                              </span>
+                            )}
+                          </CardDescription>
                         </div>
-                      </TableCell>
-                      <TableCell>{item.expand?.colaborador_id?.nome_completo}</TableCell>
-                      <TableCell>
-                        {item.ordem_producao ? (
-                          <Badge variant="outline" className="font-mono bg-muted/50">
-                            {item.ordem_producao}
+                        {item.isDelayed && (
+                          <Badge
+                            variant="destructive"
+                            className="flex items-center gap-1 shrink-0"
+                            aria-label="Item com retorno atrasado"
+                          >
+                            <AlertCircle className="h-3 w-3" />
+                            Atrasado
                           </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{item.currentQuantity}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex justify-between items-center mb-4 text-sm">
+                        <span className="font-medium bg-muted px-2 py-1 rounded">
+                          Qtd: {item.currentQuantity}
+                        </span>
+                        <div className="flex flex-col items-end">
+                          <span className="text-muted-foreground text-xs">
                             {format(new Date(item.created!), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                           </span>
                           <span
                             className={cn(
-                              'text-xs font-medium',
+                              'text-xs mt-0.5 font-medium',
                               item.isDelayed ? 'text-destructive' : 'text-muted-foreground',
                             )}
                           >
@@ -406,144 +526,251 @@ export default function ProductionItemsPage() {
                               : `Há ${item.daysInUse} ${item.daysInUse === 1 ? 'dia' : 'dias'}`}
                           </span>
                         </div>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate" title={item.motivo}>
-                        {item.motivo || '-'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="secondary" onClick={() => setReturnItem(item)}>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Retornar
-                        </Button>
-                      </TableCell>
+                      </div>
+                      {item.motivo && (
+                        <p className="text-sm text-muted-foreground mb-4 bg-muted/30 p-2 rounded">
+                          {item.motivo}
+                        </p>
+                      )}
+                      <Button
+                        className="w-full min-h-[44px]"
+                        variant="secondary"
+                        onClick={() => setReturnItem(item)}
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Registrar Retorno
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="mt-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Colaborador</TableHead>
+                      <TableHead>OP</TableHead>
+                      <TableHead>Qtd</TableHead>
+                      <TableHead>Data de Saída</TableHead>
+                      <TableHead>Observação</TableHead>
+                      <TableHead className="text-right">Ação</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
+                  </TableHeader>
+                  <TableBody>
+                    {activeItems.map((item) => (
+                      <TableRow
+                        key={`${item.item_id}-${item.colaborador_id}`}
+                        className={cn(item.isDelayed && 'bg-destructive/5 hover:bg-destructive/10')}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {item.expand?.item_id?.nome}
+                            {item.isDelayed && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertCircle
+                                    className="h-4 w-4 text-destructive shrink-0 cursor-help"
+                                    aria-label="Item com retorno atrasado"
+                                  />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Retorno atrasado ({'>'} 7 dias)</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{item.expand?.colaborador_id?.nome_completo}</TableCell>
+                        <TableCell>
+                          {item.ordem_producao ? (
+                            <Badge variant="outline" className="font-mono bg-muted/50">
+                              {item.ordem_producao}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{item.currentQuantity}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span>
+                              {format(new Date(item.created!), 'dd/MM/yyyy HH:mm', {
+                                locale: ptBR,
+                              })}
+                            </span>
+                            <span
+                              className={cn(
+                                'text-xs font-medium',
+                                item.isDelayed ? 'text-destructive' : 'text-muted-foreground',
+                              )}
+                            >
+                              {item.isDelayed
+                                ? `Atrasado: ${item.daysInUse} dias`
+                                : `Há ${item.daysInUse} ${item.daysInUse === 1 ? 'dia' : 'dias'}`}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={item.motivo}>
+                          {item.motivo || '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="secondary" onClick={() => setReturnItem(item)}>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Retornar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="historico" className="mt-0">
-          {historyItems.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg mt-4 border border-dashed">
-              Nenhum histórico encontrado.
-            </div>
-          ) : isMobile ? (
-            <div className="grid gap-3 mt-4">
-              {historyItems.map((mov) => (
-                <Card
-                  key={mov.id}
-                  className={cn(
-                    'border-l-4',
-                    mov.tipo_movimento === 'producao_saida'
-                      ? 'border-l-orange-500'
-                      : 'border-l-green-500',
-                  )}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="pr-2">
-                        <p className="font-semibold text-sm leading-tight">
-                          {mov.expand?.item_id?.nome}
-                        </p>
-                        <div className="text-xs text-muted-foreground mt-1 flex flex-col gap-0.5">
-                          <span>{mov.expand?.colaborador_id?.nome_completo}</span>
-                          {mov.ordem_producao && (
-                            <span>
-                              OP:{' '}
-                              <span className="font-medium text-foreground">
-                                {mov.ordem_producao}
+          <div
+            className={cn(
+              'transition-opacity duration-200',
+              isFetching && 'opacity-50 pointer-events-none',
+            )}
+          >
+            {historyItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/20 border-dashed mt-4 mx-1">
+                <h3 className="text-lg font-medium text-muted-foreground">
+                  Nenhum histórico encontrado
+                </h3>
+                {hasActiveFilters && (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-4 mt-2">
+                      Nenhum resultado encontrado para os filtros selecionados.
+                    </p>
+                    <Button onClick={clearFilters} variant="outline" className="min-h-[44px]">
+                      Limpar Filtros
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : isMobile ? (
+              <div className="grid gap-3 mt-4">
+                {historyItems.map((mov) => (
+                  <Card
+                    key={mov.id}
+                    className={cn(
+                      'border-l-4',
+                      mov.tipo_movimento === 'producao_saida'
+                        ? 'border-l-orange-500'
+                        : 'border-l-green-500',
+                    )}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="pr-2">
+                          <p className="font-semibold text-sm leading-tight">
+                            {mov.expand?.item_id?.nome}
+                          </p>
+                          <div className="text-xs text-muted-foreground mt-1 flex flex-col gap-0.5">
+                            <span>{mov.expand?.colaborador_id?.nome_completo}</span>
+                            {mov.ordem_producao && (
+                              <span>
+                                OP:{' '}
+                                <span className="font-medium text-foreground">
+                                  {mov.ordem_producao}
+                                </span>
                               </span>
-                            </span>
-                          )}
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end shrink-0">
+                          <Badge
+                            variant={
+                              mov.tipo_movimento === 'producao_saida' ? 'outline' : 'secondary'
+                            }
+                            className={cn(
+                              'mb-1',
+                              mov.tipo_movimento === 'producao_saida' &&
+                                'border-orange-200 text-orange-700',
+                            )}
+                          >
+                            {mov.tipo_movimento === 'producao_saida' ? 'Saída' : 'Retorno'}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">
+                            {format(new Date(mov.created!), 'dd/MM/yyyy HH:mm')}
+                          </span>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end shrink-0">
-                        <Badge
-                          variant={
-                            mov.tipo_movimento === 'producao_saida' ? 'outline' : 'secondary'
-                          }
-                          className={cn(
-                            'mb-1',
-                            mov.tipo_movimento === 'producao_saida' &&
-                              'border-orange-200 text-orange-700',
-                          )}
-                        >
-                          {mov.tipo_movimento === 'producao_saida' ? 'Saída' : 'Retorno'}
-                        </Badge>
-                        <span className="text-[10px] text-muted-foreground">
-                          {format(new Date(mov.created!), 'dd/MM/yyyy HH:mm')}
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="bg-muted px-2 py-0.5 rounded text-xs">
+                          Qtd: {mov.quantidade}
                         </span>
                       </div>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="bg-muted px-2 py-0.5 rounded text-xs">
-                        Qtd: {mov.quantidade}
-                      </span>
-                    </div>
-                    {mov.motivo && (
-                      <p className="text-xs mt-3 bg-muted/50 p-2 rounded">{mov.motivo}</p>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card className="mt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Item</TableHead>
-                    <TableHead>Colaborador</TableHead>
-                    <TableHead>OP</TableHead>
-                    <TableHead>Qtd</TableHead>
-                    <TableHead>Observação</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {historyItems.map((mov) => (
-                    <TableRow key={mov.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {format(new Date(mov.created!), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            mov.tipo_movimento === 'producao_saida' ? 'outline' : 'secondary'
-                          }
-                          className={
-                            mov.tipo_movimento === 'producao_saida'
-                              ? 'border-orange-200 text-orange-700'
-                              : 'bg-green-100 hover:bg-green-200 text-green-700'
-                          }
-                        >
-                          {mov.tipo_movimento === 'producao_saida' ? 'Saída' : 'Retorno'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">{mov.expand?.item_id?.nome}</TableCell>
-                      <TableCell>{mov.expand?.colaborador_id?.nome_completo}</TableCell>
-                      <TableCell>
-                        {mov.ordem_producao ? (
-                          <Badge variant="outline" className="font-mono bg-muted/50">
-                            {mov.ordem_producao}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>{mov.quantidade}</TableCell>
-                      <TableCell className="max-w-[200px] truncate" title={mov.motivo}>
-                        {mov.motivo || '-'}
-                      </TableCell>
+                      {mov.motivo && (
+                        <p className="text-xs mt-3 bg-muted/50 p-2 rounded">{mov.motivo}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="mt-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Colaborador</TableHead>
+                      <TableHead>OP</TableHead>
+                      <TableHead>Qtd</TableHead>
+                      <TableHead>Observação</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
+                  </TableHeader>
+                  <TableBody>
+                    {historyItems.map((mov) => (
+                      <TableRow key={mov.id}>
+                        <TableCell className="whitespace-nowrap">
+                          {format(new Date(mov.created!), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              mov.tipo_movimento === 'producao_saida' ? 'outline' : 'secondary'
+                            }
+                            className={
+                              mov.tipo_movimento === 'producao_saida'
+                                ? 'border-orange-200 text-orange-700'
+                                : 'bg-green-100 hover:bg-green-200 text-green-700'
+                            }
+                          >
+                            {mov.tipo_movimento === 'producao_saida' ? 'Saída' : 'Retorno'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{mov.expand?.item_id?.nome}</TableCell>
+                        <TableCell>{mov.expand?.colaborador_id?.nome_completo}</TableCell>
+                        <TableCell>
+                          {mov.ordem_producao ? (
+                            <Badge variant="outline" className="font-mono bg-muted/50">
+                              {mov.ordem_producao}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{mov.quantidade}</TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={mov.motivo}>
+                          {mov.motivo || '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 

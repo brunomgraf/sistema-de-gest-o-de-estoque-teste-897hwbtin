@@ -1,9 +1,32 @@
 import pb from '@/lib/pocketbase/client'
 import { Movement } from '@/lib/types'
 
-export const fetchProductionMovements = async (): Promise<Movement[]> => {
+export const fetchProductionMovements = async (filters?: {
+  colaborador_id?: string
+  ordem_producao?: string
+  startDate?: string
+  endDate?: string
+}): Promise<Movement[]> => {
+  let filterStr = "(tipo_movimento = 'producao_saida' || tipo_movimento = 'producao_retorno')"
+
+  if (filters?.colaborador_id && filters.colaborador_id !== 'all') {
+    filterStr += ` && colaborador_id = '${filters.colaborador_id}'`
+  }
+
+  if (filters?.ordem_producao) {
+    filterStr += ` && ordem_producao ~ '${filters.ordem_producao}'`
+  }
+
+  if (filters?.startDate) {
+    filterStr += ` && data_movimento >= '${filters.startDate} 00:00:00.000Z'`
+  }
+
+  if (filters?.endDate) {
+    filterStr += ` && data_movimento <= '${filters.endDate} 23:59:59.999Z'`
+  }
+
   return pb.collection('movimentacoes').getFullList<Movement>({
-    filter: "tipo_movimento = 'producao_saida' || tipo_movimento = 'producao_retorno'",
+    filter: filterStr,
     expand: 'item_id,colaborador_id,usuario_id',
     sort: 'created',
   })

@@ -40,11 +40,18 @@ export const createProducaoSaida = async (data: {
   usuario_id: string
   ordem_producao?: string
 }) => {
-  return pb.collection('movimentacoes').create({
+  const mov = await pb.collection('movimentacoes').create({
     ...data,
     tipo_movimento: 'producao_saida',
     data_movimento: new Date().toISOString(),
   })
+
+  const item = await pb.collection('itens').getOne(data.item_id)
+  await pb.collection('itens').update(data.item_id, {
+    quantidade_atual: Math.max(0, (item.quantidade_atual || 0) - data.quantidade),
+  })
+
+  return mov
 }
 
 export const createProducaoRetorno = async (data: {
@@ -53,12 +60,34 @@ export const createProducaoRetorno = async (data: {
   quantidade: number
   motivo?: string
   usuario_id: string
+  status_retorno: 'bom' | 'danificado'
+  descricao_problema?: string
 }) => {
-  return pb.collection('movimentacoes').create({
-    ...data,
+  const mov = await pb.collection('movimentacoes').create({
+    item_id: data.item_id,
+    colaborador_id: data.colaborador_id,
+    quantidade: data.quantidade,
+    motivo: data.motivo,
+    usuario_id: data.usuario_id,
     tipo_movimento: 'producao_retorno',
     data_movimento: new Date().toISOString(),
   })
+
+  if (data.status_retorno === 'bom') {
+    const item = await pb.collection('itens').getOne(data.item_id)
+    await pb.collection('itens').update(data.item_id, {
+      quantidade_atual: (item.quantidade_atual || 0) + data.quantidade,
+    })
+  } else if (data.status_retorno === 'danificado') {
+    await pb.collection('solicitacoes_compra').create({
+      item_id: data.item_id,
+      quantidade_sugerida: data.quantidade,
+      status: 'pendente',
+      descricao: `Manutenção ou compra de ferramenta: ${data.descricao_problema || ''}`,
+    })
+  }
+
+  return mov
 }
 
 export const getActiveProductionItems = (movements: Movement[]) => {

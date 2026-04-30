@@ -68,10 +68,27 @@ const checkoutSchema = z.object({
   motivo: z.string().optional(),
 })
 
-const returnSchema = z.object({
-  quantidade: z.coerce.number().positive('Quantidade deve ser maior que zero'),
-  motivo: z.string().optional(),
-})
+const returnSchema = z
+  .object({
+    quantidade: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+    motivo: z.string().optional(),
+    status_retorno: z.enum(['bom', 'danificado'], {
+      required_error: 'Selecione o status do retorno',
+    }),
+    descricao_problema: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.status_retorno === 'danificado' && !data.descricao_problema) {
+        return false
+      }
+      return true
+    },
+    {
+      message: 'A descrição do problema é obrigatória para itens danificados',
+      path: ['descricao_problema'],
+    },
+  )
 
 export default function ProductionItemsPage() {
   const isMobile = useIsMobile()
@@ -114,7 +131,7 @@ export default function ProductionItemsPage() {
 
   const returnForm = useForm<z.infer<typeof returnSchema>>({
     resolver: zodResolver(returnSchema),
-    defaultValues: { quantidade: 1, motivo: '' },
+    defaultValues: { quantidade: 1, motivo: '', status_retorno: 'bom', descricao_problema: '' },
   })
 
   const loadData = async () => {
@@ -159,7 +176,12 @@ export default function ProductionItemsPage() {
 
   useEffect(() => {
     if (returnItem) {
-      returnForm.reset({ quantidade: returnItem.currentQuantity, motivo: '' })
+      returnForm.reset({
+        quantidade: returnItem.currentQuantity,
+        motivo: '',
+        status_retorno: 'bom',
+        descricao_problema: '',
+      })
     }
   }, [returnItem, returnForm])
 
@@ -196,6 +218,8 @@ export default function ProductionItemsPage() {
         quantidade: data.quantidade,
         motivo: data.motivo,
         usuario_id: pb.authStore.record!.id,
+        status_retorno: data.status_retorno as 'bom' | 'danificado',
+        descricao_problema: data.descricao_problema,
       })
       toast.success('Retorno registrado com sucesso!')
       setReturnItem(null)
@@ -941,13 +965,57 @@ export default function ProductionItemsPage() {
                 />
                 <FormField
                   control={returnForm.control}
+                  name="status_retorno"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status do Retorno</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="min-h-[44px]">
+                            <SelectValue placeholder="Selecione a condição..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="bom">Retorno em bom estado e limpo</SelectItem>
+                          <SelectItem value="danificado">
+                            Item danificado, Precisa de manutenção
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {returnForm.watch('status_retorno') === 'danificado' && (
+                  <FormField
+                    control={returnForm.control}
+                    name="descricao_problema"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Descrição do Problema/Manutenção</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Descreva o dano ou manutenção necessária..."
+                            className="resize-none"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                <FormField
+                  control={returnForm.control}
                   name="motivo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Observação (Opcional)</FormLabel>
+                      <FormLabel>Observação Adicional (Opcional)</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="Ex: Retorno OK, precisa de manutenção..."
+                          placeholder="Outras observações sobre o retorno..."
                           className="resize-none"
                           {...field}
                         />

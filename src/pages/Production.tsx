@@ -63,6 +63,7 @@ const checkoutSchema = z.object({
   item_id: z.string().min(1, 'Selecione um item'),
   colaborador_id: z.string().min(1, 'Selecione um colaborador'),
   quantidade: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+  ordem_producao: z.string().optional(),
   motivo: z.string().optional(),
 })
 
@@ -86,7 +87,13 @@ export default function ProductionItemsPage() {
 
   const checkoutForm = useForm<z.infer<typeof checkoutSchema>>({
     resolver: zodResolver(checkoutSchema),
-    defaultValues: { item_id: '', colaborador_id: '', quantidade: 1, motivo: '' },
+    defaultValues: {
+      item_id: '',
+      colaborador_id: '',
+      quantidade: 1,
+      ordem_producao: '',
+      motivo: '',
+    },
   })
 
   const returnForm = useForm<z.infer<typeof returnSchema>>({
@@ -133,6 +140,7 @@ export default function ProductionItemsPage() {
         item_id: data.item_id,
         colaborador_id: data.colaborador_id,
         quantidade: data.quantidade,
+        ordem_producao: data.ordem_producao,
         motivo: data.motivo,
         usuario_id: pb.authStore.record!.id,
       })
@@ -271,6 +279,14 @@ export default function ProductionItemsPage() {
                         </CardTitle>
                         <CardDescription>
                           {item.expand?.colaborador_id?.nome_completo}
+                          {item.ordem_producao && (
+                            <span className="block mt-0.5 text-xs">
+                              OP:{' '}
+                              <span className="font-medium text-foreground">
+                                {item.ordem_producao}
+                              </span>
+                            </span>
+                          )}
                         </CardDescription>
                       </div>
                       {item.isDelayed && (
@@ -330,6 +346,7 @@ export default function ProductionItemsPage() {
                   <TableRow>
                     <TableHead>Item</TableHead>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>OP</TableHead>
                     <TableHead>Qtd</TableHead>
                     <TableHead>Data de Saída</TableHead>
                     <TableHead>Observação</TableHead>
@@ -361,6 +378,15 @@ export default function ProductionItemsPage() {
                         </div>
                       </TableCell>
                       <TableCell>{item.expand?.colaborador_id?.nome_completo}</TableCell>
+                      <TableCell>
+                        {item.ordem_producao ? (
+                          <Badge variant="outline" className="font-mono bg-muted/50">
+                            {item.ordem_producao}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant="secondary">{item.currentQuantity}</Badge>
                       </TableCell>
@@ -421,9 +447,17 @@ export default function ProductionItemsPage() {
                         <p className="font-semibold text-sm leading-tight">
                           {mov.expand?.item_id?.nome}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {mov.expand?.colaborador_id?.nome_completo}
-                        </p>
+                        <div className="text-xs text-muted-foreground mt-1 flex flex-col gap-0.5">
+                          <span>{mov.expand?.colaborador_id?.nome_completo}</span>
+                          {mov.ordem_producao && (
+                            <span>
+                              OP:{' '}
+                              <span className="font-medium text-foreground">
+                                {mov.ordem_producao}
+                              </span>
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex flex-col items-end shrink-0">
                         <Badge
@@ -464,6 +498,7 @@ export default function ProductionItemsPage() {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Item</TableHead>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>OP</TableHead>
                     <TableHead>Qtd</TableHead>
                     <TableHead>Observação</TableHead>
                   </TableRow>
@@ -490,6 +525,15 @@ export default function ProductionItemsPage() {
                       </TableCell>
                       <TableCell className="font-medium">{mov.expand?.item_id?.nome}</TableCell>
                       <TableCell>{mov.expand?.colaborador_id?.nome_completo}</TableCell>
+                      <TableCell>
+                        {mov.ordem_producao ? (
+                          <Badge variant="outline" className="font-mono bg-muted/50">
+                            {mov.ordem_producao}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>{mov.quantidade}</TableCell>
                       <TableCell className="max-w-[200px] truncate" title={mov.motivo}>
                         {mov.motivo || '-'}
@@ -561,19 +605,34 @@ export default function ProductionItemsPage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={checkoutForm.control}
-                name="quantidade"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Quantidade</FormLabel>
-                    <FormControl>
-                      <Input type="number" min="1" className="min-h-[44px]" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={checkoutForm.control}
+                  name="quantidade"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Quantidade</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="1" className="min-h-[44px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={checkoutForm.control}
+                  name="ordem_producao"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ordem de Produção (OP)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: 12345" className="min-h-[44px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={checkoutForm.control}
                 name="motivo"
